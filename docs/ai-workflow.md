@@ -13,7 +13,7 @@
 
 GitHub Actions token'ı repo içindeki işlerde kullanılır. Workflow job'ı `contents: write`, `issues: write`, `pull-requests: write` ister. Repo Actions ayarlarında PR oluşturmaya izin verilmelidir.
 
-Ücretsiz API katmanında gönderilen içerik Google'ın ürün geliştirmesinde kullanılabilir. Gizli/proprietary kod göndermeden önce sağlayıcı koşullarını değerlendirin. Bu repo şu anda private olduğundan yalnızca uygun bulduğunuz kaynaklarla deneme yapın.
+Ücretsiz API katmanında gönderilen içerik Google'ın ürün geliştirmesinde kullanılabilir. Gizli/proprietary kod göndermeden önce sağlayıcı koşullarını değerlendirin. IssuePilot reposu public yapılmıştır; private hedeflerde yalnızca sağlayıcıya göndermeyi uygun bulduğunuz kaynaklarla deneme yapın.
 
 ## Uygulanan akış
 
