@@ -1,5 +1,14 @@
 name: CI
-on: [push, pull_request]
+run-name: CI ${{ inputs.ref || github.sha }}
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Exact commit SHA to verify (optional)
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -10,9 +19,32 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm test
+
+  report:
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.ref != ''
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - name: Report result on the tested commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TEST_SHA: ${{ inputs.ref }}
+          TEST_RESULT: ${{ needs.test.result }}
+        shell: bash
+        run: |
+          [[ "$TEST_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 2
+          state=failure
+          if [ "$TEST_RESULT" = success ]; then state=success; fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$TEST_SHA" \
+            -f state="$state" -f context='IssuePilot / CI' \
+            -f description="Build and test result: $TEST_RESULT" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

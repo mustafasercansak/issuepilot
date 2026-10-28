@@ -72,6 +72,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -94,3 +95,16 @@ jobs:
           INVENTORY_ISSUE_NUMBER: ${{ vars.INVENTORY_ISSUE_NUMBER }}
           INVENTORY_TASK_KIND: ${{ vars.INVENTORY_TASK_KIND }}
         run: node dist/run-inventory.js
+
+      - name: Request CI for the generated PR commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number || vars.INVENTORY_ISSUE_NUMBER }}
+        shell: bash
+        run: |
+          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 2
+          branch="issuepilot/inventory-$ISSUE_NUMBER"
+          test_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --jq .object.sha)
+          [[ "$test_sha" =~ ^[a-f0-9]{40}$ ]] || exit 2
+          default_branch=$(gh repo view "$GITHUB_REPOSITORY" --json defaultBranchRef --jq .defaultBranchRef.name)
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$default_branch" -f ref="$test_sha"
