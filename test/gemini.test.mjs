@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateInventory, defaultModel } from '../dist/gemini.js';
-import { validateInventoryDocument } from '../dist/inventory-document.js';
+import { normalizeInventoryLinks, validateInventoryDocument } from '../dist/inventory-document.js';
 const context = { sources: ['README.md','package.json','src/cli.ts'].map(path=>({path,content:'example'})), omitted:[] };
 const markdown = '# Repository inventory\n\n' +
   '- Project: [README](../README.md).\n' +
@@ -30,4 +30,13 @@ test('document rejects unknown links, external images, HTML and ungrounded outpu
   assert.throws(()=>validateInventoryDocument(markdown+'![image](https://example.com)',context));
   assert.throws(()=>validateInventoryDocument(markdown+'<script>alert(1)</script>',context));
   assert.throws(()=>validateInventoryDocument('# Invented\n'+'x'.repeat(300),context));
+});
+
+test('normalizes only known repository-root references and permits internal anchors',()=>{
+  const unnormalized = markdown.replace('../README.md','README.md').replace('../src/cli.ts','./src/cli.ts#entry');
+  const normalized = normalizeInventoryLinks(unnormalized,context);
+  assert.match(normalized,/\(\.\.\/README\.md\)/);
+  assert.match(normalized,/\(\.\.\/src\/cli\.ts#entry\)/);
+  validateInventoryDocument(normalized+'\n[Top](#repository-inventory)',context);
+  assert.throws(()=>validateInventoryDocument(normalizeInventoryLinks(markdown.replace('../README.md','unknown.md'),context),context));
 });

@@ -1,7 +1,7 @@
 import { collectInventoryContext, inventoryPrompt } from './inventory-context.js';
 import { generateInventory, defaultModel } from './gemini.js';
 import { eligibility, readIssue } from './github.js';
-import { validateInventoryDocument } from './inventory-document.js';
+import { normalizeInventoryLinks, validateInventoryDocument } from './inventory-document.js';
 
 // Fixed inventory task only: model output is never a path, a command or GitHub API arguments.
 const repository = process.env.GITHUB_REPOSITORY ?? '';
@@ -57,7 +57,7 @@ try {
   if (process.env.GITHUB_ACTIONS !== 'true') throw new Error('Run this task via the inventory workflow');
   claimed = true;
   await transition('Agent::Working', ['Agent::Allowed', 'Agent::Needs-Human']);
-  const markdown = await generateInventory(inventoryPrompt(context), apiKey, model);
+  const markdown = normalizeInventoryLinks(await generateInventory(inventoryPrompt(context), apiKey, model), context);
   validateInventoryDocument(markdown, context);
   await stillWorking();
   // Existing orphan branches are not overwritten. A human must inspect/recover them.

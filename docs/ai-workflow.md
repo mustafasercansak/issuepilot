@@ -43,3 +43,5 @@ Yerel Ollama için sağlayıcı adaptörü ve self-hosted runner sonraki seçene
 - https://ai.google.dev/gemini-api/docs/rate-limits
 - https://ai.google.dev/api/generate-content
 - https://docs.ollama.com/faq
+
+İlk gerçek API denemesinde Gemini yanıt verdi, ancak kaynak bağlantısı doğrulaması nedeniyle PR açılmadı. Bilinen kaynaklara ait repo-kökü bağlantılarını doğru göreli yola dönüştürme ve prompt'a açık bağlantı haritası ekleme uygulanmıştır. Bilinmeyen kaynaklar hâlâ reddedilir.
