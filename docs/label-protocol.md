@@ -1,5 +1,11 @@
 # Etiket protokolü
 
+## Görev alma koşulu
+
+Issue hem yapılandırılmış GitHub Projects panosunda `Status = Ready` olmalı hem de insanın eklediği `Agent::Allowed` etiketini taşımalıdır. Yalnızca Ready veya yalnızca Allowed yeterli değildir. Backlog'daki görev alınmaz. Pano üyeliği/durumu okunamıyorsa görev alınmaz.
+
+Ready kontrolü işe başlamadan ve yayımlamadan önce tekrarlanır. Bu sürüm pano sütununu otomatik değiştirmez; Working ve In-Review durumları issue etiketlerinde izlenir. Pano Ready'den başka bir duruma elle taşınırsa çalışma durur.
+
 ## Issue durumları
 
 | Etiket | Sahibi | Anlamı |

@@ -4,5 +4,5 @@
 AI bu dosyalardan 5–8 maddelik Türkçe özet üretir. Tek çıktı docs/repository-inventory.md dosyasıdır.
 Bu tam repo envanteri değildir. Amaç GitHub issue → AI → doğrulama → PR akışını küçük bir görevle denemektir.
 
-Issue #1 bu kapsamla güncellenmiştir. İnsan Allowed etiketini eklediğinde akış başlar.
+Issue #1 bu kapsamla güncellenmiştir. İnsan kartı Ready durumuna getirip Allowed etiketini eklediğinde akış başlayabilir. Pano erişimi için [Ready kapısı](ready-gate.md) yapılandırılmalıdır.
 API anahtarı ve yapılandırma için [AI workflow](ai-workflow.md) belgesine bakın.

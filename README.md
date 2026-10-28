@@ -34,7 +34,7 @@ npm start -- issue OWNER/REPO 123
 
 Komut GitHub REST API üzerinden mevcut issue başlığını, açıklamasını ve etiketlerini okuyup JSON döndürür. Public repolar için token zorunlu değildir. Private repolarda gerekli issue okuma yetkisine sahip `GH_TOKEN` veya `GITHUB_TOKEN` ortam değişkenini kullanın.
 
-Açık issue üzerinde `Agent::Allowed` gerekir. `Rejected`, `Working` ve `In-Review` işlemeyi engeller; PR kayıtları kabul edilmez. Needs-Human sonrasında insanın yeniden Allowed eklemesi uygunluğu geri açar. Bu kontrol salt okunurdur, görevi sahiplenmez ve eşzamanlı çalışmayı kilitlemez.
+Açık issue üzerinde `Agent::Allowed` ve yapılandırılmış Projects panosunda `Status = Ready` gerekir. `PROJECT_ID` ve `PROJECT_TOKEN` olmadan uygunluk verilmez. `Rejected`, `Working` ve `In-Review` işlemeyi engeller; PR kayıtları kabul edilmez. Needs-Human sonrasında insanın yeniden Allowed eklemesi uygunluğu geri açar. Bu kontrol salt okunurdur, görevi sahiplenmez ve eşzamanlı çalışmayı kilitlemez.
 
 Çıkış kodları: 0 uygun, 1 uygun değil, 2 kullanım/API/bağlantı hatası.
 
@@ -49,3 +49,5 @@ npm test
 Doğrudan JSON çıktısı için `node dist/cli.js issue OWNER/REPO 123` kullanın.
 
 AI bağlantısının hedef akışı ve mevcut sınırlar: [AI workflow](docs/ai-workflow.md).
+
+Ready kapısı ve pano erişimi: [kurulum](docs/ready-gate.md). Yalnızca Ready’ye taşıma, tarama açıkken 30 dakikalık kontrolde algılanır; Allowed etiket olayı hemen kontrol başlatır.

@@ -1,5 +1,7 @@
 name: Issue intake
 on:
+  schedule:
+    - cron: '*/30 * * * *'
   issues:
     types: [labeled]
   workflow_dispatch:
@@ -12,13 +14,13 @@ permissions:
   contents: read
   issues: read
 concurrency:
-  group: intake-${{ github.event.issue.number || inputs.issue_number }}
+  group: intake-${{ github.event.issue.number || inputs.issue_number || vars.INVENTORY_ISSUE_NUMBER }}
   cancel-in-progress: false
 jobs:
   inspect:
     outputs:
       eligible: ${{ steps.inspect.outputs.eligible }}
-    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'Agent::Allowed'
+    if: (github.event_name == 'schedule' && vars.PROJECT_POLLING_ENABLED == 'true') || github.event_name == 'workflow_dispatch' || github.event.label.name == 'Agent::Allowed'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -35,8 +37,10 @@ jobs:
         id: inspect
         env:
           GH_TOKEN: ${{ github.token }}
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_ID: ${{ vars.PROJECT_ID }}
           REPOSITORY: ${{ github.repository }}
-          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number || vars.INVENTORY_ISSUE_NUMBER }}
         shell: bash
         run: |
           set +e
@@ -49,12 +53,12 @@ jobs:
           const result = JSON.parse(readFileSync('result.json', 'utf8'));
           appendFileSync(process.env.GITHUB_OUTPUT, `eligible=${result.Eligible}\n`);
           appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-            `## Issue intake\n\nIssue #${result.Number}\n\nEligible: ${result.Eligible}\n\nReason: ${result.Reason}\n\nIntake check complete. AI runs separately when enabled.\n`);
+            `## Issue intake\n\nIssue #${result.Number}\n\nEligible: ${result.Eligible}\n\nReason: ${result.Reason}\n\nProject status: ${result.ProjectStatus ?? "not checked"}\n\nIntake check complete. AI runs separately when enabled.\n`);
           JS
 
   inventory:
     needs: inspect
-    if: needs.inspect.outputs.eligible == 'true' && vars.INVENTORY_AI_ENABLED == 'true' && format('{0}', github.event.issue.number || inputs.issue_number) == vars.INVENTORY_ISSUE_NUMBER
+    if: needs.inspect.outputs.eligible == 'true' && vars.INVENTORY_AI_ENABLED == 'true' && format('{0}', github.event.issue.number || inputs.issue_number || vars.INVENTORY_ISSUE_NUMBER) == vars.INVENTORY_ISSUE_NUMBER
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
@@ -74,8 +78,10 @@ jobs:
       - name: Generate inventory and open PR
         env:
           GH_TOKEN: ${{ github.token }}
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_ID: ${{ vars.PROJECT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
-          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number || vars.INVENTORY_ISSUE_NUMBER }}
           INVENTORY_ISSUE_NUMBER: ${{ vars.INVENTORY_ISSUE_NUMBER }}
         run: node dist/run-inventory.js

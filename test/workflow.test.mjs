@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-for (const scenario of ['success','quota','existing-pr','rejected','revoked']) {
+for (const scenario of ['success','quota','existing-pr','rejected','revoked','backlog','project-error','moved-away']) {
   test(`inventory workflow: ${scenario}`,()=>{
     const root=mkdtempSync(join(tmpdir(),'issuepilot-flow-'));
     try {
@@ -19,6 +19,7 @@ for (const scenario of ['success','quota','existing-pr','rejected','revoked']) {
       writeFileSync(preload,`
         import {writeFileSync} from 'node:fs';
         let labels=[{name:'Agent::Allowed'}];
+        let projectStatus='Ready';
         const calls=[];
         const scenario=${JSON.stringify(scenario)};
         if(scenario==='rejected') labels.push({name:'Agent::Rejected'});
@@ -28,8 +29,13 @@ for (const scenario of ['success','quota','existing-pr','rejected','revoked']) {
           const body=options.body?JSON.parse(options.body):undefined;
           calls.push({url,method,body});
           const path=new URL(url).pathname;
+          if(path==='/graphql') {
+            if(scenario==='project-error') return Response.json({errors:[{message:'Forbidden'}]});
+            return Response.json({data:{node:{items:{nodes:[{content:{number:1,repository:{nameWithOwner:'example/repo'}},fieldValueByName:{name:scenario==='backlog'?'Backlog':projectStatus}}],pageInfo:{hasNextPage:false,endCursor:null}}}}});
+          }
           if(url.includes('generativelanguage')) {
             if(scenario==='quota') return new Response('',{status:429});
+            if(scenario==='moved-away') projectStatus='Backlog';
             if(scenario==='revoked') labels.push({name:'Agent::Rejected'});
             return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:'# Repository inventory\\n\\nStatic analysis only; commands were not executed. Human review is required for factual accuracy.\\n\\n- Project: [README](../README.md)\\n- Runtime: [package](../package.json)\\n- Guidance: [CI](../.github/workflows/ci.yml)\\n'}]}}]});
           }
@@ -46,7 +52,7 @@ for (const scenario of ['success','quota','existing-pr','rejected','revoked']) {
         };
       `);
       const result=spawnSync(process.execPath,['--import',pathToFileURL(preload).href,resolve('dist/run-inventory.js')],{
-        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:'1',INVENTORY_ISSUE_NUMBER:'1',GH_TOKEN:'fake',GEMINI_API_KEY:'fake',GITHUB_SHA:'a'.repeat(40)}
+        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:'1',INVENTORY_ISSUE_NUMBER:'1',PROJECT_ID:'PVT_example',PROJECT_TOKEN:'project-fake',GH_TOKEN:'fake',GEMINI_API_KEY:'fake',GITHUB_SHA:'a'.repeat(40)}
       });
       const calls=JSON.parse(readFileSync(log,'utf8'));
       if(scenario==='success') {
@@ -65,7 +71,9 @@ for (const scenario of ['success','quota','existing-pr','rejected','revoked']) {
           assert.equal(calls.filter(c=>c.url.includes('generativelanguage')).length,1);
         } else if(scenario==='revoked') {
           assert.equal(calls.some(c=>c.body?.labels?.includes('Agent::Needs-Human')),false);
-        } else assert.equal(calls.filter(c=>c.method!=='GET').length,0);
+        } else if(scenario==='moved-away') {
+          assert.ok(calls.some(c=>c.body?.labels?.includes('Agent::Needs-Human')));
+        } else assert.equal(calls.filter(c=>c.method!=='GET' && !c.url.endsWith('/graphql')).length,0);
       }
     } finally {rmSync(root,{recursive:true,force:true});}
   });

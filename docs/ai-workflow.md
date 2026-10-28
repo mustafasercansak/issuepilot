@@ -17,7 +17,7 @@ GitHub Actions token'ı repo içindeki işlerde kullanılır. Workflow job'ı `c
 
 ## Uygulanan akış
 
-Allowed → uygunluk kontrolü → Working → takip edilen kaynaklardan sınırlı bağlam → tek Gemini isteği → belge boyutu/biçimi/kaynak bağlantısı kontrolü → issuepilot/inventory-N dalı → yalnızca docs/repository-inventory.md dosyası → PR → In-Review.
+Ready + Allowed → uygunluk kontrolü → Working → takip edilen kaynaklardan sınırlı bağlam → tek Gemini isteği → belge boyutu/biçimi/kaynak bağlantısı kontrolü → issuepilot/inventory-N dalı → yalnızca docs/repository-inventory.md dosyası → PR → In-Review.
 
 Workflow yalnızca yapılandırılmış tek envanter issue'sunu işler. Genel amaçlı kod ajanı değildir; issue metninden shell komutu çalıştırmaz. Modelin tool/komut yetkisi yoktur. Envanterin kapsamı sabittir; issue içindeki ek istekler modele uygulanmaz.
 
@@ -47,3 +47,5 @@ Yerel Ollama için sağlayıcı adaptörü ve self-hosted runner sonraki seçene
 İlk gerçek API denemesinde Gemini yanıt verdi, ancak kaynak bağlantısı doğrulaması nedeniyle PR açılmadı. Bilinen kaynaklara ait repo-kökü bağlantılarını doğru göreli yola dönüştürme ve prompt'a açık bağlantı haritası ekleme uygulanmıştır. Bilinmeyen kaynaklar hâlâ reddedilir.
 
 Pilot sadeleştirildi: yalnızca README.md, package.json ve .github/workflows/ci.yml kaynak alınarak 5–8 maddelik kısa özet üretilir. Bu ilk deneme tam repo envanteri değildir.
+
+Görev almak için [Ready kapısının](ready-gate.md) PROJECT_TOKEN yapılandırması da gereklidir. Token yoksa AI çağrısı yapılmaz.

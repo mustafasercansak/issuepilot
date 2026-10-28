@@ -3,11 +3,15 @@ import { generateInventory, defaultModel } from './gemini.js';
 import { eligibility, readIssue } from './github.js';
 import { normalizeInventoryLinks, validateInventoryDocument } from './inventory-document.js';
 
+import { readProjectStatus } from './projects.js';
+
 // Fixed inventory task only: model output is never a path, a command or GitHub API arguments.
 const repository = process.env.GITHUB_REPOSITORY ?? '';
 const number = Number(process.env.ISSUE_NUMBER);
 const approved = Number(process.env.INVENTORY_ISSUE_NUMBER);
 const token = process.env.GH_TOKEN ?? '';
+const projectId = process.env.PROJECT_ID ?? '';
+const projectToken = process.env.PROJECT_TOKEN ?? '';
 const apiKey = process.env.GEMINI_API_KEY ?? '';
 const sha = process.env.GITHUB_SHA ?? '';
 const model = process.env.GEMINI_MODEL || defaultModel;
@@ -35,11 +39,17 @@ async function transition(add: string, remove: string[]): Promise<void> {
     await github(`issues/${number}/labels/${encodeURIComponent(label)}`, 'DELETE');
 }
 
+async function requireReady(): Promise<void> {
+  if (await readProjectStatus(repository, number, projectId, projectToken) !== 'Ready')
+    throw new Error('Issue is not Ready in the configured project');
+}
+
 async function stillWorking(): Promise<void> {
   const issue = await readIssue(repository, number, token);
   const labels = issue.labels.map(label => label.name);
   if (issue.state !== 'open' || labels.includes('Agent::Rejected') || !labels.includes('Agent::Working'))
     throw new Error('Issue authorization changed; stopped before publishing');
+  await requireReady();
 }
 
 try {
@@ -49,6 +59,7 @@ try {
   const issue = await readIssue(repository, number, token);
   const reason = eligibility(issue);
   if (reason !== 'eligible') throw new Error(`Issue is not eligible: ${reason}`);
+  await requireReady();
   const pulls = await github(`pulls?state=all&head=${encodeURIComponent(repository.split('/')[0] + ':' + branch)}&per_page=100`);
   if (pulls.length > 0) throw new Error('This task already has a PR; automatic duplicate/revision runs are disabled');
   const context = pilotInventoryContext(collectInventoryContext(process.cwd()));
@@ -79,7 +90,7 @@ try {
   console.log(`Created PR: ${pr.html_url}`);
 } catch (error) {
   // Error messages are controlled; provider bodies, prompts and credentials are never logged.
-  const message = error instanceof Error && /^(GitHub HTTP|Gemini |Inventory |Issue |This task|No inventory|Invalid |GH_TOKEN|Run this)/.test(error.message)
+  const message = error instanceof Error && /^(GitHub HTTP|Gemini |Inventory |Issue |This task|No inventory|Invalid |Project |GH_TOKEN|Run this)/.test(error.message)
     ? error.message : 'Inventory failed (network, timeout or unexpected response)';
   console.error(message);
   if (claimed) {
