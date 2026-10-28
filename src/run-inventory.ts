@@ -107,9 +107,20 @@ try {
         ref = await github('git/refs', 'POST', { ref: `refs/heads/${branch}`, sha });
       }
       if (!/^[a-f0-9]{40}$/.test(ref?.object?.sha ?? '')) throw new Error('Inventory branch response is invalid');
-      const head = ref.object.sha;
+      let head = ref.object.sha;
       let file = await github(`contents/${output}?ref=${head}`, 'GET', undefined, true);
-      if (file && (task.change === 'added' || head !== sha)) {
+      const unchangedReadme = task.change === 'modified' && file?.encoding === 'base64' &&
+        Buffer.from(file.content, 'base64').toString('utf8') === task.original;
+      if (head !== sha && (!file || unchangedReadme)) {
+        const ancestry = await github(`compare/${head}...${sha}`);
+        if (pr || !['ahead', 'identical'].includes(ancestry.status) || ancestry.merge_base_commit?.sha !== head)
+          throw new Error('Inventory empty branch cannot be safely fast-forwarded');
+        await github(`git/refs/heads/${branch}`, 'PATCH', { sha, force: false });
+        head = sha;
+        file = await github(`contents/${output}?ref=${head}`, 'GET', undefined, true);
+        await journal.record('Boş görev dalı, force kullanılmadan güncel başlangıç commit’ine ilerletildi.');
+      }
+      if (file && !unchangedReadme) {
         const commit = await github(`commits/${head}`);
         const base = validateCheckpoint(commit, number, output, fingerprint, task.change);
         const ancestry = await github(`compare/${base}...${sha}`);

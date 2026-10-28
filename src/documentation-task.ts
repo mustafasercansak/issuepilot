@@ -22,6 +22,7 @@ export function documentationTask(kind: string, all: InventoryContext, number: n
   const heading = '## GitHub Actions ile ilk görev';
   if (original.includes(heading)) throw new Error('Inventory README setup section already exists');
   const prefix = original + (original.endsWith('\n') ? '\n' : '\n\n');
+  const scopeNote = 'Bu akış yapılandırılmış tek görevi işler; genel kuyruk değildir.';
   const required = ['Node.js 24','npm ci','npm run build','GEMINI_API_KEY','PROJECT_TOKEN','PROJECT_ID',
     'INVENTORY_ISSUE_NUMBER','INVENTORY_AI_ENABLED','PROJECT_POLLING_ENABLED','Ready','Agent::Allowed',
     'In progress','In review','30','docs/ai-workflow.md','docs/ready-gate.md','docs/issue-journal.md'];
@@ -33,8 +34,10 @@ export function documentationTask(kind: string, all: InventoryContext, number: n
       throw new Error('Inventory README section format is invalid');
     if (/<\/?[a-z!][^>]*>/i.test(section) || /!\[|(?:AIza|gh[pousr]_|github_pat_)[A-Za-z0-9_-]{15,}/.test(section))
       throw new Error('Inventory README section contains forbidden markup or credential-like text');
-    if (required.some(value => !section.includes(value)) || !section.includes('yapılandırılmış tek') || !section.includes('genel kuyruk'))
-      throw new Error('Inventory README setup information is incomplete');
+    const plain = section.replace(/[`*]/g, '').replace(/\s+/g, ' ');
+    const missing = required.filter(value => !plain.includes(value));
+    if (missing.length || !section.includes(scopeNote))
+      throw new Error('Inventory README setup information is incomplete: ' + (missing.join(', ') || 'task scope note'));
     const links = [...section.matchAll(/\[[^\]\n]+\]\(([^\s)]+)\)/g)];
     if (links.length < 3 || links.some(([,target]) => !selected.includes(target!.split('#')[0]!)))
       throw new Error('Inventory README links must reference supplied source files');
@@ -52,7 +55,7 @@ Explain first GitHub Actions setup using only these sources. Include Node.js 24,
 Describe GEMINI_API_KEY and PROJECT_TOKEN secrets (names only), the project write permission, and each of these variables:
 PROJECT_ID, INVENTORY_ISSUE_NUMBER, INVENTORY_AI_ENABLED, PROJECT_POLLING_ENABLED.
 Explain Ready + Agent::Allowed, In progress and In review, immediate label checks versus 30-minute polling.
-Clearly say this is a "yapılandırılmış tek" task and not a "genel kuyruk". Do not claim generic coding support.
+Do not claim a general queue or generic coding support. The application appends its own exact scope note.
 Link docs/ai-workflow.md, docs/ready-gate.md and docs/issue-journal.md with inline relative links from the repository root.
 Only use links to supplied files. No external links, HTML, images, tokens or invented configuration.
 Optional fenced sh examples may contain only npm ci, npm run build, npm test, npm start -- --help, one per line.
@@ -62,7 +65,7 @@ SOURCE DATA (JSON):\n${JSON.stringify(context)}`,
       (match, start, target, end) => {
         const path = target.replace(/^\.\.?\//, '');
         return selected.includes(path) ? `${start}${path}${end}` : match;
-      }) + '\n',
+      }) + `\n\n${scopeNote}\n`,
     validate,
   };
 }

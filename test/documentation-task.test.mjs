@@ -33,3 +33,9 @@ test('README recovery accepts one modified README checkpoint, not an added or di
   assert.equal(validateCheckpoint(commit,5,'README.md',fingerprint,'modified'),base);
   assert.throws(()=>validateCheckpoint(commit,5,'README.md',fingerprint,'added'));
 });
+
+test('README validation accepts Markdown emphasis without depending on model scope wording',()=>{
+  const task=documentationTask('readme-setup',context,5);
+  const formatted=section.replace('Node.js 24','**Node.js** **24**').replace('Bu yapılandırılmış tek görevi işler; genel kuyruk değildir.','Bu sürüm sınırlı bir pilot olarak çalışır.');
+  task.validate(task.prepare(formatted));
+});
