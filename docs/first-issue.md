@@ -1,13 +1,8 @@
-# İlk pilot: repo envanteri
+# İlk pilot: kısa teknik özet
 
-GitHub'da **New issue → Repo envanteri** şablonu kullanılır.
-İlk deneme bu küçük repoda yapılabilir. Gerçek bir hedef repodaki daha büyük envanter sonraki denemedir.
+İlk görev üç kaynakla sınırlandırılmıştır: README.md, package.json, .github/workflows/ci.yml.
+AI bu dosyalardan 5–8 maddelik Türkçe özet üretir. Tek çıktı docs/repository-inventory.md dosyasıdır.
+Bu tam repo envanteri değildir. Amaç GitHub issue → AI → doğrulama → PR akışını küçük bir görevle denemektir.
 
-1. Görev metnini ve kabul kriterlerini incele.
-2. Hazır olduğunda `Agent::Allowed` etiketini ekle.
-3. Entegrasyon uygulandıktan sonra ajan `Working` durumuna geçer.
-4. Ajan dosya referanslı analiz yorumunu, belge değişikliğini ve doğrulama sonuçlarını üretir.
-5. PR açılınca issue `In-Review` durumuna geçer.
-6. İnsan belgeyi inceler ve PR'a uygun `Agent-Result::` etiketini ekler.
-
-Allowed etiketi Issue intake kontrolünü tetikler. AI job’ı için [Gemini kurulumunu](ai-workflow.md) tamamlayın. Gerçek AI çıktısı API anahtarıyla ayrıca doğrulanmalıdır.
+Issue #1 bu kapsamla güncellenmiştir. İnsan Allowed etiketini eklediğinde akış başlar.
+API anahtarı ve yapılandırma için [AI workflow](ai-workflow.md) belgesine bakın.

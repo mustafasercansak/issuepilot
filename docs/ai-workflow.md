@@ -45,3 +45,5 @@ Yerel Ollama için sağlayıcı adaptörü ve self-hosted runner sonraki seçene
 - https://docs.ollama.com/faq
 
 İlk gerçek API denemesinde Gemini yanıt verdi, ancak kaynak bağlantısı doğrulaması nedeniyle PR açılmadı. Bilinen kaynaklara ait repo-kökü bağlantılarını doğru göreli yola dönüştürme ve prompt'a açık bağlantı haritası ekleme uygulanmıştır. Bilinmeyen kaynaklar hâlâ reddedilir.
+
+Pilot sadeleştirildi: yalnızca README.md, package.json ve .github/workflows/ci.yml kaynak alınarak 5–8 maddelik kısa özet üretilir. Bu ilk deneme tam repo envanteri değildir.

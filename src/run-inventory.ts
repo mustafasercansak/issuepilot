@@ -1,4 +1,4 @@
-import { collectInventoryContext, inventoryPrompt } from './inventory-context.js';
+import { collectInventoryContext, inventoryPrompt, pilotInventoryContext } from './inventory-context.js';
 import { generateInventory, defaultModel } from './gemini.js';
 import { eligibility, readIssue } from './github.js';
 import { normalizeInventoryLinks, validateInventoryDocument } from './inventory-document.js';
@@ -51,7 +51,7 @@ try {
   if (reason !== 'eligible') throw new Error(`Issue is not eligible: ${reason}`);
   const pulls = await github(`pulls?state=all&head=${encodeURIComponent(repository.split('/')[0] + ':' + branch)}&per_page=100`);
   if (pulls.length > 0) throw new Error('This task already has a PR; automatic duplicate/revision runs are disabled');
-  const context = collectInventoryContext(process.cwd());
+  const context = pilotInventoryContext(collectInventoryContext(process.cwd()));
   if (!context.sources.length) throw new Error('No inventory sources available');
   // Only the Actions workflow concurrency group provides mutual exclusion.
   if (process.env.GITHUB_ACTIONS !== 'true') throw new Error('Run this task via the inventory workflow');

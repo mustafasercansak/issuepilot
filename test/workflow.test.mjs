@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -11,7 +11,8 @@ for (const scenario of ['success','quota','existing-pr','rejected','revoked']) {
     const root=mkdtempSync(join(tmpdir(),'issuepilot-flow-'));
     try {
       execFileSync('git',['init','--quiet'],{cwd:root});
-      for(const name of ['README.md','package.json','AGENTS.md']) writeFileSync(join(root,name),'Example source');
+      mkdirSync(join(root,'.github/workflows'),{recursive:true});
+      for(const name of ['README.md','package.json','.github/workflows/ci.yml']) writeFileSync(join(root,name),'Example source');
       execFileSync('git',['add','.'],{cwd:root});
       const preload=join(root,'mock.mjs');
       const log=join(root,'requests.json');
@@ -30,7 +31,7 @@ for (const scenario of ['success','quota','existing-pr','rejected','revoked']) {
           if(url.includes('generativelanguage')) {
             if(scenario==='quota') return new Response('',{status:429});
             if(scenario==='revoked') labels.push({name:'Agent::Rejected'});
-            return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:'# Repository inventory\\n\\nStatic analysis only; commands were not executed. Human review is required for factual accuracy.\\n\\n- Project: [README](../README.md)\\n- Runtime: [package](../package.json)\\n- Guidance: [instructions](../AGENTS.md)\\n'}]}}]});
+            return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:'# Repository inventory\\n\\nStatic analysis only; commands were not executed. Human review is required for factual accuracy.\\n\\n- Project: [README](../README.md)\\n- Runtime: [package](../package.json)\\n- Guidance: [CI](../.github/workflows/ci.yml)\\n'}]}}]});
           }
           if(path.endsWith('/issues/1') && method==='GET') return Response.json({number:1,title:'Inventory',body:'docs/repository-inventory.md',html_url:'https://github.com/example/repo/issues/1',state:'open',labels});
           if(path.endsWith('/pulls') && method==='GET') return Response.json(scenario==='existing-pr'?[{number:2}]:[]);
