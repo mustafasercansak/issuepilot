@@ -1,0 +1,49 @@
+name: Issue intake
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Existing issue number
+        required: true
+        type: string
+permissions:
+  contents: read
+  issues: read
+concurrency:
+  group: intake-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'Agent::Allowed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Read issue and check eligibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+        shell: bash
+        run: |
+          set +e
+          node dist/cli.js issue "$REPOSITORY" "$ISSUE_NUMBER" > result.json
+          status=$?
+          set -e
+          if [ "$status" -gt 1 ]; then exit "$status"; fi
+          node --input-type=module <<'JS'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const result = JSON.parse(readFileSync('result.json', 'utf8'));
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `## Issue intake\n\nIssue #${result.Number}\n\nEligible: ${result.Eligible}\n\nReason: ${result.Reason}\n\nRead-only check; no AI execution or PR creation.\n`);
+          JS
