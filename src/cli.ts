@@ -19,13 +19,11 @@ if (args.length === 0 || (args.length === 1 && ["--help", "-h"].includes(args[0]
     const issue = await readIssue(args[1]!, Number(args[2]), process.env.GH_TOKEN || process.env.GITHUB_TOKEN);
     let reason = eligibility(issue);
     let projectStatus: string | null = null;
-    if (reason === 'eligible') {
-      if (!process.env.PROJECT_ID || !process.env.PROJECT_TOKEN) {
-        reason = 'project-access-not-configured';
-      } else {
-        projectStatus = await readProjectStatus(args[1]!, Number(args[2]), process.env.PROJECT_ID, process.env.PROJECT_TOKEN);
-        if (projectStatus !== 'Ready') reason = 'project-not-ready';
-      }
+    if (process.env.PROJECT_ID && process.env.PROJECT_TOKEN) {
+      projectStatus = await readProjectStatus(args[1]!, Number(args[2]), process.env.PROJECT_ID, process.env.PROJECT_TOKEN);
+      if (reason === 'eligible' && projectStatus !== 'Ready') reason = 'project-not-ready';
+    } else if (reason === 'eligible') {
+      reason = 'project-access-not-configured';
     }
     console.log(JSON.stringify({ Repository: args[1], Number: issue.number, Title: issue.title,
       Body: issue.body, Url: issue.html_url, Labels: issue.labels.map(label => label.name),
