@@ -3,7 +3,7 @@ import { generateInventory, defaultModel } from './gemini.js';
 import { eligibility, readIssue } from './github.js';
 import { normalizeInventoryLinks, validateInventoryDocument } from './inventory-document.js';
 
-import { readProjectStatus } from './projects.js';
+import { readProjectStatus, setProjectStatus } from './projects.js';
 
 // Fixed inventory task only: model output is never a path, a command or GitHub API arguments.
 const repository = process.env.GITHUB_REPOSITORY ?? '';
@@ -49,7 +49,8 @@ async function stillWorking(): Promise<void> {
   const labels = issue.labels.map(label => label.name);
   if (issue.state !== 'open' || labels.includes('Agent::Rejected') || !labels.includes('Agent::Working'))
     throw new Error('Issue authorization changed; stopped before publishing');
-  await requireReady();
+  if (await readProjectStatus(repository, number, projectId, projectToken) !== 'In progress')
+    throw new Error('Issue board status changed; stopped before publishing');
 }
 
 try {
@@ -66,8 +67,10 @@ try {
   if (!context.sources.length) throw new Error('No inventory sources available');
   // Only the Actions workflow concurrency group provides mutual exclusion.
   if (process.env.GITHUB_ACTIONS !== 'true') throw new Error('Run this task via the inventory workflow');
+  await setProjectStatus(repository, number, projectId, projectToken, 'Ready', 'In progress');
   claimed = true;
   await transition('Agent::Working', ['Agent::Allowed', 'Agent::Needs-Human']);
+  await stillWorking();
   const markdown = normalizeInventoryLinks(await generateInventory(inventoryPrompt(context), apiKey, model), context);
   validateInventoryDocument(markdown, context);
   await stillWorking();
@@ -86,6 +89,7 @@ try {
       `Checks: Markdown size/format and supplied-source link validation passed. These checks do not prove factual correctness.\n\n` +
       `Sources: ${context.sources.length}; omitted by size/type: ${context.omitted.length}.\n\nHuman review is required; no automatic merge.`,
   });
+  await setProjectStatus(repository, number, projectId, projectToken, 'In progress', 'In review');
   await transition('Agent::In-Review', ['Agent::Working', 'Agent::Allowed', 'Agent::Needs-Human']);
   console.log(`Created PR: ${pr.html_url}`);
 } catch (error) {
@@ -103,7 +107,7 @@ try {
         await transition('Agent::Needs-Human', ['Agent::Working', 'Agent::Allowed']);
       }
       await github(`issues/${number}/comments`, 'POST', {
-        body: `IssuePilot stopped: ${message}.\n\nInspect any inventory branch/PR before retrying. A human can add Agent::Allowed after resolving the problem.`,
+        body: `IssuePilot stopped: ${message}.\n\nInspect any inventory branch/PR before retrying. After resolving the problem, a human can return the card to Ready and add Agent::Allowed.`,
       });
     } catch { console.error('Could not update issue status; inspect the workflow and labels manually.'); }
   }

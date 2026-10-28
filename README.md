@@ -22,7 +22,7 @@ Sonraki aşamalar CI hata analizi ve kodla karşılaştırmalı dokümantasyon d
 - [Etiket protokolü](docs/label-protocol.md)
 - [Uygulama planı](docs/implementation-plan.md)
 
-Repo: https://github.com/mustafasercansak/issuepilot (private). Lisans henüz seçilmedi.
+Repo: https://github.com/mustafasercansak/issuepilot (public). Lisans henüz seçilmedi.
 
 İlk pilot görevi: [repo envanteri](docs/first-issue.md). GitHub issue şablonu repoya eklenmiştir; AI envanter otomasyonu varsayılan olarak kapalıdır.
 
@@ -51,3 +51,5 @@ Doğrudan JSON çıktısı için `node dist/cli.js issue OWNER/REPO 123` kullan�
 AI bağlantısının hedef akışı ve mevcut sınırlar: [AI workflow](docs/ai-workflow.md).
 
 Ready kapısı ve pano erişimi: [kurulum](docs/ready-gate.md). Yalnızca Ready’ye taşıma, tarama açıkken 30 dakikalık kontrolde algılanır; Allowed etiket olayı hemen kontrol başlatır.
+
+Ajan AI çağrısından önce kartı **In progress**, PR açıldığında **In review** yapar. PROJECT_TOKEN için `project` yazma yetkisi gerekir. Takılma durumu issue üzerinde Needs-Human ve açıklama yorumuyla gösterilir.

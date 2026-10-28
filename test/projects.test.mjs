@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readProjectStatus } from '../dist/projects.js';
+import { readProjectStatus, setProjectStatus } from '../dist/projects.js';
 const item = status => ({content:{number:1,repository:{nameWithOwner:'example/repo'}},fieldValueByName:status?{name:status}:null});
 const response = (nodes,hasNextPage=false,endCursor=null)=>Response.json({data:{node:{items:{nodes,pageInfo:{hasNextPage,endCursor}}}}});
 test('project gate reads the selected project, issue and Status',async()=>{
@@ -32,4 +32,19 @@ test('missing credentials and inaccessible projects fail closed',async()=>{
 
 test('unreadable issue content is an access failure, not a missing Ready card',async()=>{
   await assert.rejects(readProjectStatus('example/repo',1,'PVT_test','fake',async()=>response([{content:null,fieldValueByName:{name:'Ready'}}])),/repository permissions/);
+});
+
+test('board transition uses selected item and option IDs and checks mutation result', async()=>{
+  const projectItem = {...item('Ready'),id:'item',fieldValueByName:{name:'Ready',field:{id:'field',options:[{id:'progress',name:'In progress'}]}}};
+  let mutations=0;
+  await setProjectStatus('example/repo',1,'PVT_test','fake','Ready','In progress',async(url,options)=>{
+    const body=JSON.parse(options.body);
+    if(!body.query.startsWith('mutation')) return response([projectItem]);
+    mutations++;
+    assert.deepEqual(body.variables,{project:'PVT_test',item:'item',field:'field',option:'progress'});
+    return Response.json({data:{updateProjectV2ItemFieldValue:{projectV2Item:{id:'item'}}}});
+  });
+  assert.equal(mutations,1);
+  await assert.rejects(setProjectStatus('example/repo',1,'PVT_test','fake','Backlog','In progress',async()=>response([projectItem])),/status changed/);
+  await assert.rejects(setProjectStatus('example/repo',1,'PVT_test','fake','Ready','In progress',async(url,options)=>JSON.parse(options.body).query.startsWith('mutation')?Response.json({errors:[{}]}):response([projectItem])),/write permission/);
 });

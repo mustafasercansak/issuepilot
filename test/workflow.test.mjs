@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-for (const scenario of ['success','quota','existing-pr','rejected','revoked','backlog','project-error','moved-away']) {
+for (const scenario of ['success','quota','existing-pr','rejected','revoked','backlog','project-error','moved-away','project-write-denied']) {
   test(`inventory workflow: ${scenario}`,()=>{
     const root=mkdtempSync(join(tmpdir(),'issuepilot-flow-'));
     try {
@@ -30,8 +30,13 @@ for (const scenario of ['success','quota','existing-pr','rejected','revoked','ba
           calls.push({url,method,body});
           const path=new URL(url).pathname;
           if(path==='/graphql') {
+            if(body.query.startsWith('mutation')) {
+              if(scenario==='project-write-denied') return Response.json({errors:[{message:'Forbidden'}]});
+              projectStatus=body.variables.option==='progress'?'In progress':'In review';
+              return Response.json({data:{updateProjectV2ItemFieldValue:{projectV2Item:{id:'item'}}}});
+            }
             if(scenario==='project-error') return Response.json({errors:[{message:'Forbidden'}]});
-            return Response.json({data:{node:{items:{nodes:[{content:{number:1,repository:{nameWithOwner:'example/repo'}},fieldValueByName:{name:scenario==='backlog'?'Backlog':projectStatus}}],pageInfo:{hasNextPage:false,endCursor:null}}}}});
+            return Response.json({data:{node:{items:{nodes:[{id:'item',content:{number:1,repository:{nameWithOwner:'example/repo'}},fieldValueByName:{name:scenario==='backlog'?'Backlog':projectStatus,field:{id:'status-field',options:[{id:'progress',name:'In progress'},{id:'review',name:'In review'}]}}}],pageInfo:{hasNextPage:false,endCursor:null}}}}});
           }
           if(url.includes('generativelanguage')) {
             if(scenario==='quota') return new Response('',{status:429});
@@ -62,6 +67,9 @@ for (const scenario of ['success','quota','existing-pr','rejected','revoked','ba
         assert.match(writes[0].url,/contents\/docs\/repository-inventory.md$/);
         assert.equal(calls.filter(c=>c.method==='POST'&&c.url.endsWith('/pulls')).length,1);
         assert.ok(calls.some(c=>c.body?.labels?.includes('Agent::In-Review')));
+        const aiIndex=calls.findIndex(c=>c.url.includes('generativelanguage'));
+        assert.ok(calls.findIndex(c=>c.body?.variables?.option==='progress') < aiIndex);
+        assert.ok(calls.some(c=>c.body?.variables?.option==='review'));
       } else {
         assert.equal(result.status,2,result.stderr);
         assert.equal(calls.filter(c=>c.method==='PUT').length,0);

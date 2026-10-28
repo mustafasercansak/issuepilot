@@ -5,7 +5,7 @@ Görev alma kuralı: yapılandırılmış panoda **Status = Ready** ve issue üz
 ## Yapılandırma
 
 - `PROJECT_ID`: hedef GitHub Project node ID. Bu repo için `PVT_kwHOAr3aNM4BpEZa` (mustafasercansak / project 7).
-- `PROJECT_TOKEN`: Actions repository secret. Kişisel Projects panosunu ve private issue içeriğini okuyabilmelidir. Classic PAT için `read:project` ve private repo içeriği için `repo` kapsamları gerekir. Mümkünse kısa süreli ve ihtiyaca göre daraltılmış bir token kullanın. İş akışı pano verisini yalnızca okur.
+- `PROJECT_TOKEN`: Actions repository secret. Kişisel Projects panosunu ve private issue içeriğini okuyabilmelidir. Classic PAT için `project` (okuma/yazma) ve private repo içeriği için `repo` kapsamları gerekir. Repo public olduğunda private repo yetkisi gerekmez. Mümkünse kısa süreli ve ihtiyaca göre daraltılmış bir token kullanın. İş akışı pano durumunu okur ve günceller.
 - `PROJECT_POLLING_ENABLED=true`: Ready değişimini yakalamak için 30 dakikalık kontrolü açar. Token eklenene kadar false tutulur.
 - `INVENTORY_ISSUE_NUMBER`: ilk pilotun işleyeceği tek issue. Tüm Ready görevlerini işleyen genel kuyruk henüz yoktur.
 
@@ -17,4 +17,4 @@ Allowed eklendiğinde ve manuel çalıştırmada durum hemen kontrol edilir. Pan
 
 Pano kontrolü CLI intake ve AI runner içinde uygulanır. Yetki veya GraphQL hatasında AI çağrısı ve PR yazımı yapılmaz. Pano sayfaları cursor ile gezilir; hedef issue başka projede Ready olsa bile seçilen panonun durumu belirleyicidir.
 
-Ready'den alınan görevler bu sürümde panoda otomatik In progress/In review/Done yapılmaz. Issue etiketleri güncellenir. İş sırasında kartı Ready'den çıkarmak, yayımlama kontrolünde durma nedenidir. Otomatik pano geçişleri ayrı bir geliştirmedir.
+Ready'den alınan görevler AI çağrısından önce In progress, PR açıldıktan sonra In review yapılır. Pano yazımı başarısızsa model çağrısı başlatılmaz. Çalışırken kart In progress dışında bir duruma taşınırsa yayımlama durur. Takılan görev yerinde kalır; Needs-Human etiketi ve açıklama yorumu eklenir. Retry için kartı Ready yapıp Allowed ekleyin. Done otomasyonu henüz yoktur.
