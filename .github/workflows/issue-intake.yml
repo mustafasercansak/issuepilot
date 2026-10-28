@@ -10,6 +10,11 @@ on:
         description: Existing issue number
         required: true
         type: string
+      resume_working:
+        description: Explicitly recover an interrupted Working task
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
   issues: read
@@ -37,6 +42,7 @@ jobs:
         id: inspect
         env:
           GH_TOKEN: ${{ github.token }}
+          RESUME_WORKING: ${{ github.event_name == 'workflow_dispatch' && inputs.resume_working }}
           PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
           PROJECT_ID: ${{ vars.PROJECT_ID }}
           REPOSITORY: ${{ github.repository }}
@@ -79,6 +85,7 @@ jobs:
       - name: Generate inventory and open PR
         env:
           GH_TOKEN: ${{ github.token }}
+          RESUME_WORKING: ${{ github.event_name == 'workflow_dispatch' && inputs.resume_working }}
           PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
           PROJECT_ID: ${{ vars.PROJECT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

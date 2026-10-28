@@ -53,3 +53,7 @@ AI bağlantısının hedef akışı ve mevcut sınırlar: [AI workflow](docs/ai-
 Ready kapısı ve pano erişimi: [kurulum](docs/ready-gate.md). Yalnızca Ready’ye taşıma, tarama açıkken 30 dakikalık kontrolde algılanır; Allowed etiket olayı hemen kontrol başlatır.
 
 Ajan AI çağrısından önce kartı **In progress**, PR açıldığında **In review** yapar. PROJECT_TOKEN için `project` yazma yetkisi gerekir. Takılma durumu issue üzerinde Needs-Human ve açıklama yorumuyla gösterilir.
+
+## Yarıda kalan işler
+
+Kaydedilmiş belge ve açık PR doğrulanarak yeniden kullanılır; aynı belge için model çağrısı veya PR kopyası oluşturulmaz. GitHub kaynaklı geçici hatalarda bir kez toparlama denenir. Kesilmiş Working işleri manuel resume_working seçeneğiyle devam ettirilebilir. [Kurallar ve sınırlar](docs/recovery.md).

@@ -17,7 +17,7 @@ GitHub Actions token'ı repo içindeki işlerde kullanılır. Workflow job'ı `c
 
 ## Uygulanan akış
 
-Ready + Allowed → uygunluk kontrolü → pano In progress + Working → takip edilen kaynaklardan sınırlı bağlam → tek Gemini isteği → belge boyutu/biçimi/kaynak bağlantısı kontrolü → issuepilot/inventory-N dalı → yalnızca docs/repository-inventory.md dosyası → PR → pano In review + In-Review.
+Ready + Allowed → uygunluk kontrolü → pano In progress + Working → takip edilen kaynaklardan sınırlı bağlam → tek Gemini isteği → belge boyutu/biçimi/kaynak bağlantısı kontrolü → issuepilot/inventory-N dalı → yalnızca göreve ait Markdown dosyası → PR → pano In review + In-Review.
 
 Workflow yalnızca yapılandırılmış tek envanter issue'sunu işler. Genel amaçlı kod ajanı değildir; issue metninden shell komutu çalıştırmaz. Modelin tool/komut yetkisi yoktur. Envanterin kapsamı sabittir; issue içindeki ek istekler modele uygulanmaz.
 
@@ -25,7 +25,9 @@ Bir istekte en fazla 8192 çıktı token'ı; bağlamda yaklaşık 100 KB kaynak;
 
 Hata sonrasında Needs-Human ve açıklama yorumu eklenir. Rejected, yayımlamadan önce tekrar kontrol edilir ve korunur. Çalışma sırasında eklenen ret etiketini ajan kaldırmaz. GitHub etiket/PR işlemleri atomik değildir; son kontrol ile yazma arasında kısa bir yarış aralığı kalır.
 
-Aynı issue'nun workflow concurrency grubu eşzamanlı çalışmayı sınırlar. Bu kilit yalnızca bu workflow üzerinden başlatılan işler içindir. Önceden açılmış PR (kapalı dahil) veya kalan dal üzerine otomatik yazılmaz. PR sonrasında revizyon ve mevcut belgeyi yenileme henüz desteklenmez. Kesilmiş Working işi insan tarafından incelenip gerekiyorsa etiket ve dal temizlenerek yeniden Allowed yapılmalıdır.
+Aynı issue'nun workflow concurrency grubu eşzamanlı çalışmayı sınırlar. Bu kilit yalnızca bu workflow üzerinden başlatılan işler içindir. Hata sonrası devam etme ve kesilmiş Working görevinin kurtarılması [recovery](recovery.md) belgesinde açıklanır. Kapalı PR yeniden açılmaz ve replacement PR üretilmez. PR içeriğine review revizyonları uygulama henüz desteklenmez.
+
+İlk görev #1 için çıktı docs/repository-inventory.md olarak korunur. Sonraki görevler docs/technical-summary-N.md üretir; farklı issue'lar aynı dosyanın üzerine yazmaz. Yeni görev için INVENTORY_ISSUE_NUMBER değişkenini ayarlayın. Bu hâlâ yapılandırılmış tek pilotu işler; tüm Ready issue'larını tüketen genel kuyruk değildir.
 
 ## Sınırlar ve doğrulama
 

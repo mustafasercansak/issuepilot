@@ -25,10 +25,12 @@ if (args.length === 0 || (args.length === 1 && ["--help", "-h"].includes(args[0]
     } else if (reason === 'eligible') {
       reason = 'project-access-not-configured';
     }
+    const recovering = process.env.RESUME_WORKING === 'true' && reason === 'already-working' &&
+      ['In progress', 'In review'].includes(projectStatus ?? '');
     console.log(JSON.stringify({ Repository: args[1], Number: issue.number, Title: issue.title,
       Body: issue.body, Url: issue.html_url, Labels: issue.labels.map(label => label.name),
-      ProjectStatus: projectStatus, Eligible: reason === "eligible", Reason: reason }, null, 2));
-    process.exitCode = reason === "eligible" ? 0 : 1;
+      ProjectStatus: projectStatus, Eligible: reason === "eligible" || recovering, Reason: recovering ? "explicit-recovery" : reason }, null, 2));
+    process.exitCode = reason === "eligible" || recovering ? 0 : 1;
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('Project ')) console.error(error.message);
     console.error("Could not read GitHub issue. Check repository, issue/project access, rate limits and connectivity.");

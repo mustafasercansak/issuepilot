@@ -20,7 +20,7 @@ Normal akış: Allowed → Working → In-Review. Takılma durumunda Working →
 
 Rejected diğer etiketlerden önceliklidir; kaldırılmadan görev alınmaz. Ajan Rejected etiketini kaldırmaz. Yeni duruma geçerken önceki durum etiketleri temizlenir.
 
-Aynı issue için ikinci aktif çalışma veya PR oluşturulmaz. Kesilmiş Working görevleri için kurtarma politikası uygulanmalıdır. PR açmak görevi tamamlanmış saymaz; merge insana aittir.
+Aynı issue için ikinci aktif çalışma veya PR oluşturulmaz. Kesilmiş Working görevleri yalnızca açık resume_working seçimiyle kurtarılabilir; [recovery kuralları](recovery.md) geçerlidir. PR açmak görevi tamamlanmış saymaz; merge insana aittir.
 
 ## PR sonuçları
 
