@@ -57,3 +57,39 @@ Ajan AI çağrısından önce kartı **In progress**, PR açıldığında **In r
 ## Yarıda kalan işler
 
 Kaydedilmiş belge ve açık PR doğrulanarak yeniden kullanılır; aynı belge için model çağrısı veya PR kopyası oluşturulmaz. GitHub kaynaklı geçici hatalarda bir kez toparlama denenir. Kesilmiş Working işleri manuel resume_working seçeneğiyle devam ettirilebilir. [Kurallar ve sınırlar](docs/recovery.md).
+
+## GitHub Actions ile ilk görev
+
+GitHub Actions, projenin otomasyon merkezi olarak yapılandırılmıştır. İlk kurulum ve iş akışı yönetimi için Node.js 24 LTS sürümü kullanılır. İş akışlarını çalıştırmak için ilgili dizinlerde şu komutlar sırayla uygulanmalıdır:
+
+```sh
+npm ci
+npm run build
+npm test
+npm start -- --help
+```
+
+### Kurulum ve Yetkilendirme
+
+Projenin envanter ve AI işlemlerini yürütebilmesi için aşağıdaki GitHub Secret ve Variable tanımlarının yapılması gerekir:
+
+*   **Secret'lar:** `GEMINI_API_KEY` (AI modeline erişim için) ve `PROJECT_TOKEN` (GitHub Project panosunu okumak ve güncellemek için gereklidir).
+*   **Variable'lar:** `PROJECT_ID`, `INVENTORY_ISSUE_NUMBER` (işlenecek hedef issue numarası), `INVENTORY_AI_ENABLED` (AI otomasyonunu aktif etmek için `true` yapılmalıdır) ve `PROJECT_POLLING_ENABLED` (Ready durumundaki issue'ları periyodik kontrol etmek için `true` seçilebilir).
+
+İş akışı `contents: write`, `issues: write` ve `pull-requests: write` izinlerine ihtiyaç duyar; bu yetkiler PR oluşturulması ve etiket yönetimi için zorunludur.
+
+### İş Akışı Kontrolleri
+
+İş akışı iki farklı tetikleyici ile çalışır:
+1.  **Anlık Kontrol:** Issue üzerinde `Agent::Allowed` etiketi eklendiğinde, workflow anında uygunluk denetimi yapar.
+2.  **Periyodik Kontrol:** `PROJECT_POLLING_ENABLED` aktif ise, her 30 dakikada bir "Ready" durumundaki issue'lar taranır.
+
+**Ready kapısı** (detaylar için [docs/ready-gate.md](docs/ready-gate.md)) kuralına göre, görevin başlaması için kartın `Status = Ready` olması ve issue üzerinde `Agent::Allowed` etiketinin bulunması gerekir. Çalışma başladıktan sonra süreç şu şekilde ilerler:
+
+*   **In progress:** Ajan AI çağrısından önce kartı bu duruma getirir.
+*   **In review:** PR başarıyla açıldığında kart bu duruma taşınır.
+
+AI süreçleri ve envanter oluşturma adımları hakkında detaylı bilgi için [docs/ai-workflow.md](docs/ai-workflow.md), yapılan işlemlerin kayıtları için ise [docs/issue-journal.md](docs/issue-journal.md) dosyalarını inceleyebilirsiniz. Bu sistem, belirli yapılandırılmış görevleri işlemek üzere tasarlanmıştır; genel bir kod ajanı veya sınırsız kuyruk yönetimi sağlamaz.
+
+Bu akış yapılandırılmış tek görevi işler; genel kuyruk değildir.
+
