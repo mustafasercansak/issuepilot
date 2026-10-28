@@ -73,3 +73,20 @@ export async function setProjectStatus(repository: string, number: number, proje
   if (result.errors?.length || result.data?.updateProjectV2ItemFieldValue?.projectV2Item?.id !== item.id)
     throw new Error('Project status update failed; check project write permission');
 }
+
+// GitHub can acknowledge a mutation before another project workflow has settled.
+// Confirm the postcondition and retry only the expected prior state, never an arbitrary human move.
+export async function confirmProjectStatus(repository: string, number: number, projectId: string,
+  token: string, expected: string, target: string, request: typeof fetch = fetch,
+  pause: () => Promise<void> = () => new Promise(resolve => setTimeout(resolve, 1500))): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const status = await readProjectStatus(repository, number, projectId, token, request);
+    if (status !== target) {
+      if (status !== expected) throw new Error('Project status changed outside the expected transition');
+      await setProjectStatus(repository, number, projectId, token, expected, target, request);
+    }
+    await pause();
+    if (await readProjectStatus(repository, number, projectId, token, request) === target) return;
+  }
+  throw new Error('Project status did not settle at the requested value');
+}

@@ -2,7 +2,7 @@ import { collectInventoryContext, inventoryPrompt, pilotInventoryContext } from 
 import { generateInventory, defaultModel } from './gemini.js';
 import { eligibility, readIssue } from './github.js';
 import { normalizeInventoryLinks, validateInventoryDocument } from './inventory-document.js';
-import { readProjectStatus, setProjectStatus } from './projects.js';
+import { readProjectStatus, setProjectStatus, confirmProjectStatus } from './projects.js';
 import { sourceFingerprint, checkpointMessage, validateCheckpoint } from './inventory-checkpoint.js';
 
 const repository = process.env.GITHUB_REPOSITORY ?? '';
@@ -66,7 +66,7 @@ try {
   const repo = await github(''); // Fail before spending model quota if repo metadata is unavailable.
   const issue = await readIssue(repository, number, token);
   const reason = eligibility(issue);
-  const manualResume = process.env.RESUME_WORKING === 'true' && reason === 'already-working';
+  const manualResume = process.env.RESUME_WORKING === 'true' && ['already-working', 'in-review'].includes(reason);
   if (reason !== 'eligible' && !manualResume) throw new Error(`Issue is not eligible: ${reason}`);
   if (manualResume) {
     await active(true);
@@ -139,9 +139,11 @@ try {
             `Human review is required for factual accuracy. No automatic merge.`,
         });
       }
-      if (await active(true) === 'In progress')
-        await setProjectStatus(repository, number, projectId, projectToken, 'In progress', 'In review');
+      await active(true);
+      // Update issue labels before the final board transition, then verify actual board state.
       await transition('Agent::In-Review', ['Agent::Working', 'Agent::Allowed', 'Agent::Needs-Human']);
+      await active(true);
+      await confirmProjectStatus(repository, number, projectId, projectToken, 'In progress', 'In review');
       console.log(`PR ready: ${pr.html_url}`);
       break;
     } catch (error) {

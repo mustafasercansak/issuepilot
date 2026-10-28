@@ -11,7 +11,7 @@ on:
         required: true
         type: string
       resume_working:
-        description: Explicitly recover an interrupted Working task
+        description: Recover an interrupted Working task or review synchronization
         required: false
         default: false
         type: boolean

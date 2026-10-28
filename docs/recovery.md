@@ -26,6 +26,8 @@ Model çağrısının kendisi, kota hataları, yetki hataları ve doğrulama hat
 
 Needs-Human için insan sorunu inceledikten sonra kartı Ready yapıp Allowed ekler. Varsa doğrulanmış belge ve açık PR kullanılır; kaynaklar değişmemişse model anahtarı olmadan bile PR aşaması tamamlanabilir.
 
-Workflow zorla kesildiği için etiket Working kaldıysa **Actions → Issue intake → Run workflow** ekranından ilgili issue ve **resume_working=true** seçilir. Bu yalnızca yapılandırılmış issue, Working etiketi ve In progress/In review kartı için geçerlidir. Planlı tarama bu görevi kendiliğinden yeniden almaz. Rejected her zaman engeller.
+Workflow zorla kesildiği için etiket Working kaldıysa **Actions → Issue intake → Run workflow** ekranından ilgili issue ve **resume_working=true** seçilir. Bu yalnızca yapılandırılmış issue, Working veya In-Review etiketi ve In progress/In review kartı için geçerlidir. In-Review seçimi mevcut PR/pano eşitlemesini doğrulamak içindir. Planlı tarama bu görevi kendiliğinden yeniden almaz. Rejected her zaman engeller.
 
 İnsan tarafından kapatılmış PR yeniden açılmaz; tanınmayan dal/PR üzerine yazılmaz. Otomatik merge yoktur.
+
+PR tamamlanırken önce issue etiketleri güncellenir, ardından pano In review yapılır. API onayı dışında kart durumu da yeniden okunarak doğrulanır. Önceki In progress durumuna geri dönen geçiş sınırlı sayıda düzeltilir; Ready/Done gibi beklenmeyen insan geçişleri üzerine yazılmaz.

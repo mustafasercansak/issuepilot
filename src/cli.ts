@@ -25,7 +25,7 @@ if (args.length === 0 || (args.length === 1 && ["--help", "-h"].includes(args[0]
     } else if (reason === 'eligible') {
       reason = 'project-access-not-configured';
     }
-    const recovering = process.env.RESUME_WORKING === 'true' && reason === 'already-working' &&
+    const recovering = process.env.RESUME_WORKING === 'true' && ['already-working', 'in-review'].includes(reason) &&
       ['In progress', 'In review'].includes(projectStatus ?? '');
     console.log(JSON.stringify({ Repository: args[1], Number: issue.number, Title: issue.title,
       Body: issue.body, Url: issue.html_url, Labels: issue.labels.map(label => label.name),

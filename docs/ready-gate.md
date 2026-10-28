@@ -19,4 +19,4 @@ Pano kontrolü CLI intake ve AI runner içinde uygulanır. Yetki veya GraphQL ha
 
 Ready'den alınan görevler AI çağrısından önce In progress, PR açıldıktan sonra In review yapılır. Pano yazımı başarısızsa model çağrısı başlatılmaz. Çalışırken kart In progress dışında bir duruma taşınırsa yayımlama durur. Takılan görev yerinde kalır; Needs-Human etiketi ve açıklama yorumu eklenir. Retry için kartı Ready yapıp Allowed ekleyin. Done otomasyonu henüz yoktur.
 
-Kesilmiş Working işi için manuel workflow başlatırken resume_working=true seçilebilir. Bu istisna Ready yerine In progress/In review durumunu kabul eder; Rejected veya kapalı issue için geçerli değildir. Detaylar: [recovery](recovery.md).
+Kesilmiş Working işi için manuel workflow başlatırken resume_working=true seçilebilir. Bu istisna Working veya In-Review etiketiyle Ready yerine In progress/In review durumunu kabul eder; Rejected veya kapalı issue için geçerli değildir. Detaylar: [recovery](recovery.md).

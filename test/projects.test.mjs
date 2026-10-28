@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readProjectStatus, setProjectStatus } from '../dist/projects.js';
+import { readProjectStatus, setProjectStatus, confirmProjectStatus } from '../dist/projects.js';
 const item = status => ({content:{number:1,repository:{nameWithOwner:'example/repo'}},fieldValueByName:status?{name:status}:null});
 const response = (nodes,hasNextPage=false,endCursor=null)=>Response.json({data:{node:{items:{nodes,pageInfo:{hasNextPage,endCursor}}}}});
 test('project gate reads the selected project, issue and Status',async()=>{
@@ -47,4 +47,18 @@ test('board transition uses selected item and option IDs and checks mutation res
   assert.equal(mutations,1);
   await assert.rejects(setProjectStatus('example/repo',1,'PVT_test','fake','Backlog','In progress',async()=>response([projectItem])),/status changed/);
   await assert.rejects(setProjectStatus('example/repo',1,'PVT_test','fake','Ready','In progress',async(url,options)=>JSON.parse(options.body).query.startsWith('mutation')?Response.json({errors:[{}]}):response([projectItem])),/write permission/);
+});
+
+test('board completion verifies observed state and repairs a reverted update',async()=>{
+  let status='In progress',writes=0,pauses=0;
+  const request=async(url,options)=>{
+    const body=JSON.parse(options.body);
+    if(body.query.startsWith('mutation')){writes++;status='In review';return Response.json({data:{updateProjectV2ItemFieldValue:{projectV2Item:{id:'item'}}}});}
+    return response([{...item(status),id:'item',fieldValueByName:{name:status,field:{id:'field',options:[{name:'In review',id:'review'}]}}}]);
+  };
+  await confirmProjectStatus('example/repo',1,'PVT_test','fake','In progress','In review',request,async()=>{pauses++;if(pauses===1)status='In progress';});
+  assert.equal(writes,2);
+  assert.equal(status,'In review');
+  status='Done';
+  await assert.rejects(confirmProjectStatus('example/repo',1,'PVT_test','fake','In progress','In review',request,async()=>{}),/outside/);
 });
