@@ -50,7 +50,7 @@ for (const scenario of ['success','quota','existing-pr','rejected','revoked','ba
           if(path.includes('/labels/') && method==='DELETE') { labels=labels.filter(l=>l.name!==decodeURIComponent(path.split('/labels/')[1])); return new Response(null,{status:204}); }
           if(path.endsWith('/git/refs') && method==='POST') return Response.json({});
           if(path.endsWith('/contents/docs/repository-inventory.md') && method==='PUT') return Response.json({});
-          if(path.endsWith('/example/repo/') && method==='GET') return Response.json({default_branch:'main'});
+          if(path.endsWith('/example/repo') && method==='GET') return Response.json({default_branch:'main'});
           if(path.endsWith('/pulls') && method==='POST') return Response.json({html_url:'https://github.com/example/repo/pull/2'});
           if(path.endsWith('/comments') && method==='POST') return Response.json({});
           throw new Error('Unexpected request: '+method+' '+url);

@@ -20,7 +20,7 @@ const output = 'docs/repository-inventory.md';
 let claimed = false;
 
 async function github(path: string, method = 'GET', body?: unknown): Promise<any> {
-  const response = await fetch(`https://api.github.com/repos/${repository}/${path}`, {
+  const response = await fetch(`https://api.github.com/repos/${repository}${path ? '/' + path : ''}`, {
     method, redirect: 'error', signal: AbortSignal.timeout(30_000),
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json',
       'User-Agent': 'IssuePilot/0.1', 'X-GitHub-Api-Version': '2026-03-10',
