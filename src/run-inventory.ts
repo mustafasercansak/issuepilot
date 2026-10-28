@@ -3,6 +3,7 @@ import { generateInventory, defaultModel } from './gemini.js';
 import { eligibility, readIssue } from './github.js';
 import { normalizeInventoryLinks, validateInventoryDocument } from './inventory-document.js';
 import { readProjectStatus, setProjectStatus, confirmProjectStatus } from './projects.js';
+import { IssueJournal } from './issue-journal.js';
 import { sourceFingerprint, checkpointMessage, validateCheckpoint } from './inventory-checkpoint.js';
 
 const repository = process.env.GITHUB_REPOSITORY ?? '';
@@ -17,6 +18,7 @@ const model = process.env.GEMINI_MODEL || defaultModel;
 const branch = `issuepilot/inventory-${number}`;
 const output = number === 1 ? 'docs/repository-inventory.md' : `docs/technical-summary-${number}.md`;
 const marker = `<!-- issuepilot:issue=${number} -->`;
+let journal: IssueJournal | undefined;
 let claimed = false;
 let pendingMarkdown: string | undefined;
 
@@ -68,6 +70,10 @@ try {
   const reason = eligibility(issue);
   const manualResume = process.env.RESUME_WORKING === 'true' && ['already-working', 'in-review'].includes(reason);
   if (reason !== 'eligible' && !manualResume) throw new Error(`Issue is not eligible: ${reason}`);
+  journal = new IssueJournal({ repository, issue: number,
+    runId: process.env.GITHUB_RUN_ID ?? 'unknown', attempt: process.env.GITHUB_RUN_ATTEMPT ?? '1',
+    sha, branch, output }, github);
+  await journal.record(manualResume ? 'Kurtarma kontrolleri başlatıldı; mevcut dal ve PR incelenecek.' : 'Görev kontrolleri başlatıldı; Ready ve yetkilendirme doğrulanacak.');
   if (manualResume) {
     await active(true);
     claimed = true;
@@ -78,6 +84,10 @@ try {
     claimed = true;
     await transition('Agent::Working', ['Agent::Allowed', 'Agent::Needs-Human']);
   }
+
+  await journal.record(manualResume ? 'Yetki ve pano durumu doğrulandı; kurtarmaya devam ediliyor.' : 'Görev alındı: pano In progress, etiket Agent::Working.');
+
+  await journal.record(`Kaynaklar: ${context.sources.map(source => source.path).join(', ')}. Kaynak parmak izi: ${fingerprint}.`);
 
   // Reconcile durable remote state after one transient failure; never blindly repeat writes.
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -106,11 +116,13 @@ try {
           throw new Error('Inventory checkpoint content is invalid');
         validateInventoryDocument(Buffer.from(file.content, 'base64').toString('utf8'), context);
         console.log('Reusing validated document checkpoint; no model call.');
+        await journal.record('Kaydedilmiş belge, kaynak parmak izi, başlangıç commit’i ve kaynak bağlantıları doğrulandı. AI tekrar çağrılmadı.');
       } else {
         if (pr || head !== sha) throw new Error('Inventory branch has unexpected changes or no reusable checkpoint');
         if (!apiKey) throw new Error('GEMINI_API_KEY is missing');
         await active();
         if (!pendingMarkdown) {
+          await journal.record(`Üç kaynak dosyadan Gemini ile kısa teknik özet üretiliyor. İstek modeli: ${/^gemini-[a-zA-Z0-9.-]+$/.test(model) ? model : 'geçersiz model ayarı'}.`);
           let generated: string;
           try { generated = await generateInventory(inventoryPrompt(context), apiKey, model); }
           catch (error) {
@@ -120,6 +132,7 @@ try {
         }
         const markdown = pendingMarkdown;
         validateInventoryDocument(markdown, context);
+        await journal.record('Belge üretildi; Markdown biçimi/boyutu ve kaynak bağlantısı kontrolleri geçti. Model komut çalıştırmadı.');
         await active();
         // A branch changed by another actor must not receive our generated document.
         const latest = await github(`git/ref/heads/${branch}`);
@@ -128,6 +141,7 @@ try {
           message: checkpointMessage(number, sha, fingerprint, model),
           content: Buffer.from(markdown + '\n').toString('base64'), branch,
         });
+        await journal.record('Doğrulanmış belge görev dalına kaydedildi.');
       }
       if (!pr) {
         await active();
@@ -139,16 +153,19 @@ try {
             `Human review is required for factual accuracy. No automatic merge.`,
         });
       }
+      await journal.record(`PR hazır: ${pr.html_url}. Yalnızca görev belgesi değiştirildi; insan incelemesi gerekiyor.`);
       await active(true);
       // Update issue labels before the final board transition, then verify actual board state.
       await transition('Agent::In-Review', ['Agent::Working', 'Agent::Allowed', 'Agent::Needs-Human']);
       await active(true);
       await confirmProjectStatus(repository, number, projectId, projectToken, 'In progress', 'In review');
+      await journal.record('Tamamlandı: pano In review ve etiket Agent::In-Review doğrulandı. Otomatik merge yapılmadı.');
       console.log(`PR ready: ${pr.html_url}`);
       break;
     } catch (error) {
       if (attempt === 0 && transient(error)) {
         console.log('Transient GitHub/network failure; reconciling saved state once.');
+        await journal.record('Geçici GitHub/ağ hatası alındı. Uzak durum yeniden okunarak bir kez kurtarma deneniyor.');
         continue;
       }
       throw error;
@@ -158,6 +175,7 @@ try {
   const message = error instanceof Error && /^(GitHub HTTP|Gemini |Inventory |Issue |Invalid |Project |GH_TOKEN|GEMINI_API_KEY|Run this)/.test(error.message)
     ? error.message : 'Inventory failed (network, timeout or unexpected response)';
   console.error(message);
+  if (journal) await journal.record(`İşlem durdu: ${message}. Kaydedilmiş dal/belge/PR korunur. Sorun giderilince kart Ready yapılıp Allowed eklenebilir.`);
   if (claimed) {
     try {
       const latest = await readIssue(repository, number, token);
@@ -167,9 +185,7 @@ try {
       } else {
         await transition('Agent::Needs-Human', ['Agent::Working', 'Agent::Allowed', 'Agent::In-Review']);
       }
-      await github(`issues/${number}/comments`, 'POST', {
-        body: `IssuePilot stopped: ${message}.\n\nSaved branch/document/PR are preserved. After review, return the card to Ready and add Agent::Allowed. Validated checkpoints are reused without another model call.`,
-      });
+
     } catch { console.error('Could not update issue status; inspect workflow and labels manually.'); }
   }
   process.exitCode = 2;

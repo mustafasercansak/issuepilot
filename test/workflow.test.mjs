@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 
 const scenarios = ['success','quota','existing-closed-pr','rejected','revoked','backlog','project-error','moved-away',
   'project-write-denied','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response',
-  'lost-review-response','tampered-checkpoint','changed-sources','working-recovery','model-timeout','failed-document-write','working-without-resume','second-task'];
+  'lost-review-response','tampered-checkpoint','changed-sources','working-recovery','model-timeout','failed-document-write','working-without-resume','second-task','journal-unavailable'];
 for (const scenario of scenarios) {
   test(`inventory workflow: ${scenario}`,()=>{
     const issueNumber=scenario==='second-task'?3:1;
@@ -29,7 +29,7 @@ for (const scenario of scenarios) {
         const markdown='# Technical summary\\n\\nStatic analysis only; commands were not executed. Human review is required for factual accuracy.\\n\\n- Project: [README](../README.md)\\n- Runtime: [package](../package.json)\\n- CI: [CI](../.github/workflows/ci.yml)\\n';
         let branchExists=['resume-document','resume-pr','tampered-checkpoint','changed-sources','working-recovery'].includes(scenario);
         let documentSaved=branchExists, prExists=scenario==='resume-pr';
-        let lost=false;
+        let lost=false, journalComment=null;
         if(['working-recovery','working-without-resume'].includes(scenario)) {labels=[{name:'Agent::Working'}];projectStatus='In progress';}
         if(scenario==='rejected') labels.push({name:'Agent::Rejected'});
         process.on('exit',()=>writeFileSync(${JSON.stringify(log)},JSON.stringify(calls)));
@@ -54,6 +54,15 @@ for (const scenario of scenarios) {
             if(scenario==='moved-away') projectStatus='Backlog';
             if(scenario==='revoked') labels.push({name:'Agent::Rejected'});
             return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:markdown}]}}]});
+          }
+          if(path.endsWith('/issues/'+issueNumber+'/comments')) {
+            if(scenario==='journal-unavailable') return new Response('',{status:403});
+            if(method==='GET')return Response.json(journalComment?[journalComment]:[]);
+            journalComment={id:101,body:body.body,user:{login:'github-actions[bot]'}};
+            return Response.json(journalComment);
+          }
+          if(path.endsWith('/issues/comments/101')&&method==='PATCH') {
+            journalComment.body=body.body;return Response.json(journalComment);
           }
           if(path.endsWith('/example/repo')&&method==='GET')return Response.json({default_branch:'main'});
           if(path.endsWith('/issues/'+issueNumber)&&method==='GET')return Response.json({number:issueNumber,title:'Inventory',body:'summary',html_url:'https://github.com/example/repo/issues/1',state:'open',labels});
@@ -88,17 +97,23 @@ for (const scenario of scenarios) {
         };
       `);
       const result=spawnSync(process.execPath,['--import',pathToFileURL(preload).href,resolve('dist/run-inventory.js')],{
-        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:String(issueNumber),INVENTORY_ISSUE_NUMBER:String(issueNumber),PROJECT_ID:'PVT_example',PROJECT_TOKEN:'project-fake',GH_TOKEN:'fake',GEMINI_API_KEY:scenario.startsWith('resume-')?'':'fake',GITHUB_SHA:'a'.repeat(40),RESUME_WORKING:scenario==='working-recovery'?'true':'false'}
+        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_RUN_ID:'42',GITHUB_RUN_ATTEMPT:'1',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:String(issueNumber),INVENTORY_ISSUE_NUMBER:String(issueNumber),PROJECT_ID:'PVT_example',PROJECT_TOKEN:'project-fake',GH_TOKEN:'fake',GEMINI_API_KEY:scenario.startsWith('resume-')?'':'fake',GITHUB_SHA:'a'.repeat(40),RESUME_WORKING:scenario==='working-recovery'?'true':'false'}
       });
       const calls=JSON.parse(readFileSync(log,'utf8'));
       const modelCalls=calls.filter(c=>c.url.includes('generativelanguage'));
       const creates=calls.filter(c=>c.method==='POST'&&c.url.endsWith('/pulls'));
-      const successes=['success','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response','lost-review-response','working-recovery','failed-document-write','second-task'];
+      const successes=['success','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response','lost-review-response','working-recovery','failed-document-write','second-task','journal-unavailable'];
       if(successes.includes(scenario)){
         assert.equal(result.status,0,result.stderr);
         if(scenario==='second-task')assert.ok(calls.some(c=>c.method==='PUT'&&c.url.endsWith('/docs/technical-summary-3.md')));
         assert.ok(calls.some(c=>c.body?.labels?.includes('Agent::In-Review')));
         assert.ok(calls.some(c=>c.body?.variables?.option==='review'));
+        if(scenario!=='journal-unavailable') {
+          assert.equal(calls.filter(c=>c.method==='POST'&&c.url.endsWith('/comments')).length,1);
+          const updates=calls.filter(c=>c.method==='PATCH'&&c.url.includes('/issues/comments/'));
+          assert.match(updates.at(-1).body.body,/Tamamlandı/);
+          assert.match(updates.at(-1).body.body,/https:\/\/github.com\/example\/repo\/pull\/2/);
+        }
         assert.equal(creates.length,scenario==='resume-pr'?0:1,'no duplicate PR');
         assert.equal(modelCalls.length,scenario.startsWith('resume-')||scenario==='working-recovery'?0:1,'reuse document without another model call');
         if(modelCalls.length)assert.ok(calls.findIndex(c=>c.body?.variables?.option==='progress')<calls.findIndex(c=>c.url.includes('generativelanguage')));
