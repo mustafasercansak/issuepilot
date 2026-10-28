@@ -47,3 +47,5 @@ npm test
 ```
 
 Doğrudan JSON çıktısı için `node dist/cli.js issue OWNER/REPO 123` kullanın.
+
+AI bağlantısının hedef akışı ve mevcut sınırlar: [AI workflow](docs/ai-workflow.md).
