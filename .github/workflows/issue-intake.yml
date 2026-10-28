@@ -92,4 +92,5 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number || vars.INVENTORY_ISSUE_NUMBER }}
           INVENTORY_ISSUE_NUMBER: ${{ vars.INVENTORY_ISSUE_NUMBER }}
+          INVENTORY_TASK_KIND: ${{ vars.INVENTORY_TASK_KIND }}
         run: node dist/run-inventory.js

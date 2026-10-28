@@ -55,3 +55,5 @@ Görev almak için [Ready kapısının](ready-gate.md) PROJECT_TOKEN yapılandı
 Pano durumunu güncellemek için PROJECT_TOKEN classic PAT üzerinde `project` yazma yetkisi gerekir. Salt `read:project` yeterli değildir. Çalışma sırasında beklenen pano durumu artık In progress durumudur. Public repo için private repo erişim yetkisi gerekmez.
 
 Ajanın işlem adımları her çalışma için ilgili issue yorumunda tutulur: [çalışma günlüğü](issue-journal.md). Ayrıntılı test/komut çıktıları Actions bağlantısında kalır.
+
+README düzenleme desteği: INVENTORY_TASK_KIND=readme-setup seçilirse yalnızca README.md sonuna doğrulanmış kurulum bölümü eklenir. summary varsayılan teknik özet tipidir. [Görev kapsamı](readme-task.md).

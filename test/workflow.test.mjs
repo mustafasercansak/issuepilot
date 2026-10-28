@@ -8,15 +8,21 @@ import { pathToFileURL } from 'node:url';
 
 const scenarios = ['success','quota','existing-closed-pr','rejected','revoked','backlog','project-error','moved-away',
   'project-write-denied','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response',
-  'lost-review-response','tampered-checkpoint','changed-sources','working-recovery','model-timeout','failed-document-write','working-without-resume','second-task','journal-unavailable'];
+  'lost-review-response','tampered-checkpoint','changed-sources','working-recovery','model-timeout','failed-document-write','working-without-resume','second-task','journal-unavailable','readme-task'];
 for (const scenario of scenarios) {
   test(`inventory workflow: ${scenario}`,()=>{
-    const issueNumber=scenario==='second-task'?3:1;
+    const issueNumber=scenario==='readme-task'?5:scenario==='second-task'?3:1;
     const root=mkdtempSync(join(tmpdir(),'issuepilot-flow-'));
     try {
       execFileSync('git',['init','--quiet'],{cwd:root});
       mkdirSync(join(root,'.github/workflows'),{recursive:true});
       for(const name of ['README.md','package.json','.github/workflows/ci.yml']) writeFileSync(join(root,name),'Example source');
+      if(scenario==='readme-task') {
+        mkdirSync(join(root,'docs'),{recursive:true});
+        writeFileSync(join(root,'README.md'),'# Existing README\n');
+        for(const name of ['ai-workflow.md','ready-gate.md','label-protocol.md','issue-journal.md'])writeFileSync(join(root,'docs',name),'source');
+        writeFileSync(join(root,'.github/workflows/issue-intake.yml'),'source');
+      }
       execFileSync('git',['add','.'],{cwd:root});
       const preload=join(root,'mock.mjs'), log=join(root,'requests.json');
       const moduleUrl=pathToFileURL(resolve('dist/inventory-checkpoint.js')).href;
@@ -53,7 +59,8 @@ for (const scenario of scenarios) {
             if(scenario==='model-timeout') throw new TypeError('network');
             if(scenario==='moved-away') projectStatus='Backlog';
             if(scenario==='revoked') labels.push({name:'Agent::Rejected'});
-            return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:markdown}]}}]});
+            const text=scenario==='readme-task'?'## GitHub Actions ile ilk görev\\n\\nNode.js 24 gerekir. npm ci ve npm run build ile kurun. GEMINI_API_KEY ve PROJECT_TOKEN secret adlarıdır. PROJECT_ID panoyu, INVENTORY_ISSUE_NUMBER görevi seçer; INVENTORY_AI_ENABLED ve PROJECT_POLLING_ENABLED etkinleştirir. Ready + Agent::Allowed gerekir; In progress sonra In review olur. Etiket hemen, tarama 30 dakikada bir çalışır. Bu yapılandırılmış tek görevdir; genel kuyruk değildir. [AI](docs/ai-workflow.md), [Ready](docs/ready-gate.md), [Günlük](docs/issue-journal.md).':markdown;
+            return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text}]}}]});
           }
           if(path.endsWith('/issues/'+issueNumber+'/comments')) {
             if(scenario==='journal-unavailable') return new Response('',{status:403});
@@ -75,6 +82,7 @@ for (const scenario of scenarios) {
             if(scenario==='lost-ref-response'&&!lost){lost=true;throw new TypeError('network');}
             return Response.json({object:{sha:base}});
           }
+          if(path.includes('/contents/')&&method==='GET'&&scenario==='readme-task'&&!documentSaved)return Response.json({type:'file',encoding:'base64',sha:'c'.repeat(40),content:Buffer.from('# Existing README\\n').toString('base64')});
           if(path.includes('/contents/')&&method==='GET')return documentSaved?Response.json({type:'file',encoding:'base64',size:Buffer.byteLength(markdown),content:Buffer.from(markdown).toString('base64')}):new Response('',{status:404});
           if(path.includes('/contents/')&&method==='PUT'){
             if(scenario==='failed-document-write'&&!lost){lost=true;return new Response('',{status:503});}
@@ -97,14 +105,20 @@ for (const scenario of scenarios) {
         };
       `);
       const result=spawnSync(process.execPath,['--import',pathToFileURL(preload).href,resolve('dist/run-inventory.js')],{
-        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_RUN_ID:'42',GITHUB_RUN_ATTEMPT:'1',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:String(issueNumber),INVENTORY_ISSUE_NUMBER:String(issueNumber),PROJECT_ID:'PVT_example',PROJECT_TOKEN:'project-fake',GH_TOKEN:'fake',GEMINI_API_KEY:scenario.startsWith('resume-')?'':'fake',GITHUB_SHA:'a'.repeat(40),RESUME_WORKING:scenario==='working-recovery'?'true':'false'}
+        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_RUN_ID:'42',GITHUB_RUN_ATTEMPT:'1',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:String(issueNumber),INVENTORY_ISSUE_NUMBER:String(issueNumber),PROJECT_ID:'PVT_example',PROJECT_TOKEN:'project-fake',GH_TOKEN:'fake',INVENTORY_TASK_KIND:scenario==='readme-task'?'readme-setup':'summary',GEMINI_API_KEY:scenario.startsWith('resume-')?'':'fake',GITHUB_SHA:'a'.repeat(40),RESUME_WORKING:scenario==='working-recovery'?'true':'false'}
       });
       const calls=JSON.parse(readFileSync(log,'utf8'));
       const modelCalls=calls.filter(c=>c.url.includes('generativelanguage'));
       const creates=calls.filter(c=>c.method==='POST'&&c.url.endsWith('/pulls'));
-      const successes=['success','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response','lost-review-response','working-recovery','failed-document-write','second-task','journal-unavailable'];
+      const successes=['success','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response','lost-review-response','working-recovery','failed-document-write','second-task','journal-unavailable','readme-task'];
       if(successes.includes(scenario)){
         assert.equal(result.status,0,result.stderr);
+        if(scenario==='readme-task') {
+          const write=calls.find(c=>c.method==='PUT');
+          assert.ok(write.url.endsWith('/contents/README.md'));
+          assert.equal(write.body.sha,'c'.repeat(40));
+          assert.ok(Buffer.from(write.body.content,'base64').toString('utf8').startsWith('# Existing README\n'));
+        }
         if(scenario==='second-task')assert.ok(calls.some(c=>c.method==='PUT'&&c.url.endsWith('/docs/technical-summary-3.md')));
         assert.ok(calls.some(c=>c.body?.labels?.includes('Agent::In-Review')));
         assert.ok(calls.some(c=>c.body?.variables?.option==='review'));

@@ -1,7 +1,7 @@
-import { collectInventoryContext, inventoryPrompt, pilotInventoryContext } from './inventory-context.js';
+import { collectInventoryContext } from './inventory-context.js';
 import { generateInventory, defaultModel } from './gemini.js';
 import { eligibility, readIssue } from './github.js';
-import { normalizeInventoryLinks, validateInventoryDocument } from './inventory-document.js';
+import { documentationTask } from './documentation-task.js';
 import { readProjectStatus, setProjectStatus, confirmProjectStatus } from './projects.js';
 import { IssueJournal } from './issue-journal.js';
 import { sourceFingerprint, checkpointMessage, validateCheckpoint } from './inventory-checkpoint.js';
@@ -16,7 +16,8 @@ const apiKey = process.env.GEMINI_API_KEY ?? '';
 const sha = process.env.GITHUB_SHA ?? '';
 const model = process.env.GEMINI_MODEL || defaultModel;
 const branch = `issuepilot/inventory-${number}`;
-const output = number === 1 ? 'docs/repository-inventory.md' : `docs/technical-summary-${number}.md`;
+let output = '';
+const kind = process.env.INVENTORY_TASK_KIND || 'summary';
 const marker = `<!-- issuepilot:issue=${number} -->`;
 let journal: IssueJournal | undefined;
 let claimed = false;
@@ -63,7 +64,9 @@ try {
       number !== approved || !/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid or unsupported inventory task configuration');
   if (!token) throw new Error('GH_TOKEN is missing');
   if (process.env.GITHUB_ACTIONS !== 'true') throw new Error('Run this task via the inventory workflow');
-  const context = pilotInventoryContext(collectInventoryContext(process.cwd()));
+  const task = documentationTask(kind, collectInventoryContext(process.cwd()), number);
+  const context = task.context;
+  output = task.output;
   const fingerprint = sourceFingerprint(context);
   const repo = await github(''); // Fail before spending model quota if repo metadata is unavailable.
   const issue = await readIssue(repository, number, token);
@@ -106,48 +109,52 @@ try {
       if (!/^[a-f0-9]{40}$/.test(ref?.object?.sha ?? '')) throw new Error('Inventory branch response is invalid');
       const head = ref.object.sha;
       let file = await github(`contents/${output}?ref=${head}`, 'GET', undefined, true);
-      if (file) {
+      if (file && (task.change === 'added' || head !== sha)) {
         const commit = await github(`commits/${head}`);
-        const base = validateCheckpoint(commit, number, output, fingerprint);
+        const base = validateCheckpoint(commit, number, output, fingerprint, task.change);
         const ancestry = await github(`compare/${base}...${sha}`);
         if (!['ahead', 'identical'].includes(ancestry.status) || ancestry.merge_base_commit?.sha !== base)
           throw new Error('Inventory checkpoint base is not an ancestor of the workflow revision');
         if (file.type !== 'file' || file.encoding !== 'base64' || file.size > 64_000)
           throw new Error('Inventory checkpoint content is invalid');
-        validateInventoryDocument(Buffer.from(file.content, 'base64').toString('utf8'), context);
+        task.validate(Buffer.from(file.content, 'base64').toString('utf8'));
         console.log('Reusing validated document checkpoint; no model call.');
         await journal.record('Kaydedilmiş belge, kaynak parmak izi, başlangıç commit’i ve kaynak bağlantıları doğrulandı. AI tekrar çağrılmadı.');
       } else {
-        if (pr || head !== sha) throw new Error('Inventory branch has unexpected changes or no reusable checkpoint');
+        if (pr || head !== sha || (task.change === 'modified' && !file)) throw new Error('Inventory branch has unexpected changes or no reusable checkpoint');
+        if (task.change === 'modified' && (file.type !== 'file' || file.encoding !== 'base64' ||
+            !/^[a-f0-9]{40}$/.test(file.sha ?? '') || Buffer.from(file.content, 'base64').toString('utf8') !== task.original))
+          throw new Error('Inventory README baseline does not match the workflow source');
         if (!apiKey) throw new Error('GEMINI_API_KEY is missing');
         await active();
         if (!pendingMarkdown) {
-          await journal.record(`Üç kaynak dosyadan Gemini ile kısa teknik özet üretiliyor. İstek modeli: ${/^gemini-[a-zA-Z0-9.-]+$/.test(model) ? model : 'geçersiz model ayarı'}.`);
+          await journal.record(`${context.sources.length} kaynak dosyadan Gemini ile ${task.title} üretiliyor. İstek modeli: ${/^gemini-[a-zA-Z0-9.-]+$/.test(model) ? model : 'geçersiz model ayarı'}.`);
           let generated: string;
-          try { generated = await generateInventory(inventoryPrompt(context), apiKey, model); }
+          try { generated = await generateInventory(task.prompt, apiKey, model); }
           catch (error) {
             throw new Error(error instanceof Error && error.message.startsWith('Gemini ') ? error.message : 'Gemini request failed; model calls are not automatically retried');
           }
-          pendingMarkdown = normalizeInventoryLinks(generated, context);
+          pendingMarkdown = task.prepare(generated);
         }
         const markdown = pendingMarkdown;
-        validateInventoryDocument(markdown, context);
+        task.validate(markdown);
         await journal.record('Belge üretildi; Markdown biçimi/boyutu ve kaynak bağlantısı kontrolleri geçti. Model komut çalıştırmadı.');
         await active();
         // A branch changed by another actor must not receive our generated document.
         const latest = await github(`git/ref/heads/${branch}`);
         if (latest.object?.sha !== head) throw new Error('Inventory branch changed during generation');
         await github(`contents/${output}`, 'PUT', {
-          message: checkpointMessage(number, sha, fingerprint, model),
+          message: checkpointMessage(number, sha, fingerprint, model, task.title),
           content: Buffer.from(markdown + '\n').toString('base64'), branch,
+          ...(task.change === 'modified' ? { sha: file.sha } : {}),
         });
         await journal.record('Doğrulanmış belge görev dalına kaydedildi.');
       }
       if (!pr) {
         await active();
         pr = await github('pulls', 'POST', {
-          title: `docs: technical summary (#${number})`, head: branch, base: repo.default_branch,
-          body: `${marker}\nCloses #${number}\n\nAI-generated technical summary. Only \`${output}\` changes.\n\n` +
+          title: `docs: ${task.title} (#${number})`, head: branch, base: repo.default_branch,
+          body: `${marker}\nCloses #${number}\n\nAI-generated documentation update (${task.title}). Only \`${output}\` changes.\n\n` +
             `Checks: Markdown format/size and source links validated. Static analysis; the model executed no commands.\n\n` +
             `Sources: ${context.sources.length}. A durable checkpoint is reused on recovery when source content is unchanged.\n\n` +
             `Human review is required for factual accuracy. No automatic merge.`,
