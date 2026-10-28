@@ -10,4 +10,4 @@ GitHub'da **New issue → Repo envanteri** şablonu kullanılır.
 5. PR açılınca issue `In-Review` durumuna geçer.
 6. İnsan belgeyi inceler ve PR'a uygun `Agent-Result::` etiketini ekler.
 
-Allowed etiketi şu anda yalnızca salt okunur Issue intake kontrolünü tetikler. Working, AI ile envanter üretme ve PR açma adımları henüz uygulanmadı.
+Allowed etiketi Issue intake kontrolünü tetikler. AI job’ı için [Gemini kurulumunu](ai-workflow.md) tamamlayın. Gerçek AI çıktısı API anahtarıyla ayrıca doğrulanmalıdır.

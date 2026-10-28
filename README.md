@@ -2,7 +2,7 @@
 
 Issue, CI/CD hatası ve dokümantasyon eksiklerini inceleyip doğrulanmış PR hazırlamak için bağımsız proje.
 
-Durum: GitHub üzerindeki mevcut issue okunabilir ve etiket uygunluğu kontrol edilir. AI çalıştırma, görev sahiplenme ve PR açma henüz uygulanmadı.
+Durum: GitHub üzerindeki mevcut issue okunabilir ve etiket uygunluğu kontrol edilir. Gemini ile tek envanter belgesi üretme, durum etiketleri ve PR açma akışı uygulanmıştır; gerçek API denemesi için secret eklenip etkinleştirilmesi gerekir.
 
 ## Çalıştırma
 
@@ -22,9 +22,9 @@ Sonraki aşamalar CI hata analizi ve kodla karşılaştırmalı dokümantasyon d
 - [Etiket protokolü](docs/label-protocol.md)
 - [Uygulama planı](docs/implementation-plan.md)
 
-Henüz uzak repo oluşturulmadı ve lisans seçilmedi.
+Repo: https://github.com/mustafasercansak/issuepilot (private). Lisans henüz seçilmedi.
 
-İlk pilot görevi: [repo envanteri](docs/first-issue.md). GitHub issue şablonu repoya eklenmiştir; otomasyon henüz uygulanmamıştır.
+İlk pilot görevi: [repo envanteri](docs/first-issue.md). GitHub issue şablonu repoya eklenmiştir; AI envanter otomasyonu varsayılan olarak kapalıdır.
 
 ## GitHub issue okuma
 
@@ -38,7 +38,7 @@ Açık issue üzerinde `Agent::Allowed` gerekir. `Rejected`, `Working` ve `In-Re
 
 Çıkış kodları: 0 uygun, 1 uygun değil, 2 kullanım/API/bağlantı hatası.
 
-Issue yorumları henüz okunmaz. `Agent::Allowed` eklendiğinde Issue intake workflow’u salt okunur uygunluk kontrolünü çalıştırır. Manuel çalıştırma da desteklenir. Kuyruktan görev seçimi henüz yoktur.
+Issue yorumları henüz okunmaz. Envanter AI job’ı ayrıca yapılandırılıp etkinleştirilir. `Agent::Allowed` eklendiğinde Issue intake workflow’u salt okunur uygunluk kontrolünü çalıştırır. Manuel çalıştırma da desteklenir. Kuyruktan görev seçimi henüz yoktur.
 
 ## Kontroller
 

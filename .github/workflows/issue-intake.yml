@@ -16,6 +16,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   inspect:
+    outputs:
+      eligible: ${{ steps.inspect.outputs.eligible }}
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'Agent::Allowed'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -30,6 +32,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Read issue and check eligibility
+        id: inspect
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -44,6 +47,35 @@ jobs:
           node --input-type=module <<'JS'
           import { readFileSync, appendFileSync } from 'node:fs';
           const result = JSON.parse(readFileSync('result.json', 'utf8'));
+          appendFileSync(process.env.GITHUB_OUTPUT, `eligible=${result.Eligible}\n`);
           appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-            `## Issue intake\n\nIssue #${result.Number}\n\nEligible: ${result.Eligible}\n\nReason: ${result.Reason}\n\nRead-only check; no AI execution or PR creation.\n`);
+            `## Issue intake\n\nIssue #${result.Number}\n\nEligible: ${result.Eligible}\n\nReason: ${result.Reason}\n\nIntake check complete. AI runs separately when enabled.\n`);
           JS
+
+  inventory:
+    needs: inspect
+    if: needs.inspect.outputs.eligible == 'true' && vars.INVENTORY_AI_ENABLED == 'true' && format('{0}', github.event.issue.number || inputs.issue_number) == vars.INVENTORY_ISSUE_NUMBER
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Generate inventory and open PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          INVENTORY_ISSUE_NUMBER: ${{ vars.INVENTORY_ISSUE_NUMBER }}
+        run: node dist/run-inventory.js
