@@ -51,6 +51,7 @@ jobs:
           node --input-type=module <<'JS'
           import { readFileSync, appendFileSync } from 'node:fs';
           const result = JSON.parse(readFileSync('result.json', 'utf8'));
+          console.log(JSON.stringify({ eligible: result.Eligible, reason: result.Reason, projectStatus: result.ProjectStatus }));
           appendFileSync(process.env.GITHUB_OUTPUT, `eligible=${result.Eligible}\n`);
           appendFileSync(process.env.GITHUB_STEP_SUMMARY,
             `## Issue intake\n\nIssue #${result.Number}\n\nEligible: ${result.Eligible}\n\nReason: ${result.Reason}\n\nProject status: ${result.ProjectStatus ?? "not checked"}\n\nIntake check complete. AI runs separately when enabled.\n`);

@@ -29,7 +29,8 @@ if (args.length === 0 || (args.length === 1 && ["--help", "-h"].includes(args[0]
       Body: issue.body, Url: issue.html_url, Labels: issue.labels.map(label => label.name),
       ProjectStatus: projectStatus, Eligible: reason === "eligible", Reason: reason }, null, 2));
     process.exitCode = reason === "eligible" ? 0 : 1;
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Project ')) console.error(error.message);
     console.error("Could not read GitHub issue. Check repository, issue/project access, rate limits and connectivity.");
     process.exitCode = 2;
   }

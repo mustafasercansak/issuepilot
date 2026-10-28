@@ -29,3 +29,7 @@ test('missing credentials and inaccessible projects fail closed',async()=>{
   await assert.rejects(readProjectStatus('example/repo',1,'PVT_test','fake',async()=>new Response('',{status:403})));
   assert.equal(await readProjectStatus('example/repo',1,'PVT_test','fake',async()=>response([])),null);
 });
+
+test('unreadable issue content is an access failure, not a missing Ready card',async()=>{
+  await assert.rejects(readProjectStatus('example/repo',1,'PVT_test','fake',async()=>response([{content:null,fieldValueByName:{name:'Ready'}}])),/repository permissions/);
+});

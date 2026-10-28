@@ -13,6 +13,7 @@ export async function readProjectStatus(repository: string, number: number, proj
   token: string, request: typeof fetch = fetch): Promise<string | null> {
   if (!projectId || !token) throw new Error('Project access configuration is missing');
   let cursor: string | null = null;
+  let unreadableItems = false;
   for (let page = 0; page < 100; page++) {
     const response = await request('https://api.github.com/graphql', {
       method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30_000),
@@ -32,10 +33,14 @@ export async function readProjectStatus(repository: string, number: number, proj
     const items = result.data?.node?.items;
     if (result.errors?.length || !items || !Array.isArray(items.nodes) || !items.pageInfo)
       throw new Error('Project API returned errors or inaccessible project');
+    unreadableItems ||= items.nodes.some(item => item?.content === null);
     const item = items.nodes.find(item => item?.content?.number === number &&
       item.content.repository?.nameWithOwner?.toLowerCase() === repository.toLowerCase());
     if (item) return item.fieldValueByName?.name ?? null;
-    if (!items.pageInfo.hasNextPage) return null;
+    if (!items.pageInfo.hasNextPage) {
+      if (unreadableItems) throw new Error('Project contains unreadable issue content; check PROJECT_TOKEN repository permissions');
+      return null;
+    }
     if (!items.pageInfo.endCursor || items.pageInfo.endCursor === cursor) throw new Error('Project pagination failed');
     cursor = items.pageInfo.endCursor;
   }
