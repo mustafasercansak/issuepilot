@@ -57,3 +57,5 @@ Pano durumunu güncellemek için PROJECT_TOKEN classic PAT üzerinde `project` y
 Ajanın işlem adımları her çalışma için ilgili issue yorumunda tutulur: [çalışma günlüğü](issue-journal.md). Ayrıntılı test/komut çıktıları Actions bağlantısında kalır.
 
 README düzenleme desteği: INVENTORY_TASK_KIND=readme-setup seçilirse yalnızca README.md sonuna doğrulanmış kurulum bölümü eklenir. summary varsayılan teknik özet tipidir. [Görev kapsamı](readme-task.md).
+
+Kontrollü ilk kod düzeltmesi: INVENTORY_TASK_KIND=cli-repository. Model sadece repo adı regex verisini üretir; uygulama CLI ifadesini ve sabit regresyon testini iki dosyalı commit olarak hazırlar. [Kapsam ve sınırlar](cli-repository-task.md).

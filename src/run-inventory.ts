@@ -22,6 +22,7 @@ const marker = `<!-- issuepilot:issue=${number} -->`;
 let journal: IssueJournal | undefined;
 let claimed = false;
 let pendingMarkdown: string | undefined;
+let baselineVerified = false;
 
 class GitHubFailure extends Error {
   constructor(readonly status: number) { super(`GitHub HTTP ${status}`); }
@@ -122,22 +123,31 @@ try {
       }
       if (file && !unchangedReadme) {
         const commit = await github(`commits/${head}`);
-        const base = validateCheckpoint(commit, number, output, fingerprint, task.change);
+        const base = validateCheckpoint(commit, number, output, fingerprint, task.change, task.extraFiles.map(file => file.path));
         const ancestry = await github(`compare/${base}...${sha}`);
         if (!['ahead', 'identical'].includes(ancestry.status) || ancestry.merge_base_commit?.sha !== base)
           throw new Error('Inventory checkpoint base is not an ancestor of the workflow revision');
         if (file.type !== 'file' || file.encoding !== 'base64' || file.size > 64_000)
           throw new Error('Inventory checkpoint content is invalid');
         task.validate(Buffer.from(file.content, 'base64').toString('utf8'));
+        for (const extra of task.extraFiles) {
+          const saved = await github(`contents/${extra.path}?ref=${head}`);
+          if (saved.encoding !== 'base64' || Buffer.from(saved.content,'base64').toString('utf8') !== extra.content)
+            throw new Error('Inventory regression test checkpoint was changed');
+        }
         console.log('Reusing validated document checkpoint; no model call.');
         await journal.record('Kaydedilmiş belge, kaynak parmak izi, başlangıç commit’i ve kaynak bağlantıları doğrulandı. AI tekrar çağrılmadı.');
       } else {
         if (pr || head !== sha || (task.change === 'modified' && !file)) throw new Error('Inventory branch has unexpected changes or no reusable checkpoint');
         if (task.change === 'modified' && (file.type !== 'file' || file.encoding !== 'base64' ||
             !/^[a-f0-9]{40}$/.test(file.sha ?? '') || Buffer.from(file.content, 'base64').toString('utf8') !== task.original))
-          throw new Error('Inventory README baseline does not match the workflow source');
+          throw new Error('Inventory task baseline does not match the workflow source');
         if (!apiKey) throw new Error('GEMINI_API_KEY is missing');
         await active();
+        if (task.probe && !baselineVerified) {
+          task.probe(); baselineVerified = true;
+          await journal.record('Önce hata yeniden üretildi: mevcut CLI, dot-segment regresyon testini geçemedi. Test ağ erişimi kapalı ve secrets içermeyen alt süreçte çalıştı.');
+        }
         if (!pendingMarkdown) {
           await journal.record(`${context.sources.length} kaynak dosyadan Gemini ile ${task.title} üretiliyor. İstek modeli: ${/^gemini-[a-zA-Z0-9.-]+$/.test(model) ? model : 'geçersiz model ayarı'}.`);
           let generated: string;
@@ -149,29 +159,49 @@ try {
         }
         const markdown = pendingMarkdown;
         task.validate(markdown);
-        await journal.record('Belge üretildi; Markdown biçimi/boyutu ve kaynak bağlantısı kontrolleri geçti. Model komut çalıştırmadı.');
+        await journal.record('Çıktı üretildi; göreve özgü çıktı kontrolleri geçti. Model komut çalıştırmadı.');
         await active();
         // A branch changed by another actor must not receive our generated document.
         const latest = await github(`git/ref/heads/${branch}`);
         if (latest.object?.sha !== head) throw new Error('Inventory branch changed during generation');
+        if (task.extraFiles.length) {
+          for (const extra of task.extraFiles) {
+            if (await github(`contents/${extra.path}?ref=${head}`,'GET',undefined,true))
+              throw new Error('Inventory regression test already exists; refusing to overwrite it');
+          }
+          const parent = await github(`git/commits/${head}`);
+          if (!/^[a-f0-9]{40}$/.test(parent.tree?.sha ?? '')) throw new Error('Inventory parent tree is invalid');
+          const tree = await github('git/trees','POST',{base_tree:parent.tree.sha,tree:[
+            {path:output,mode:'100644',type:'blob',content:markdown},
+            ...task.extraFiles.map(file=>({path:file.path,mode:'100644',type:'blob',content:file.content})),
+          ]});
+          if (!/^[a-f0-9]{40}$/.test(tree.sha ?? '')) throw new Error('Inventory generated tree is invalid');
+          const commit = await github('git/commits','POST',{
+            message:checkpointMessage(number,head,fingerprint,model,task.title),tree:tree.sha,parents:[head],
+          });
+          if (!/^[a-f0-9]{40}$/.test(commit.sha ?? '')) throw new Error('Inventory generated commit is invalid');
+          await active();
+          await github(`git/refs/heads/${branch}`,'PATCH',{sha:commit.sha,force:false});
+        } else {
         await github(`contents/${output}`, 'PUT', {
           message: checkpointMessage(number, sha, fingerprint, model, task.title),
           content: Buffer.from(markdown + '\n').toString('base64'), branch,
           ...(task.change === 'modified' ? { sha: file.sha } : {}),
         });
-        await journal.record('Doğrulanmış belge görev dalına kaydedildi.');
+        }
+        await journal.record('Doğrulanmış değişiklikler görev dalına kaydedildi.');
       }
       if (!pr) {
         await active();
         pr = await github('pulls', 'POST', {
-          title: `docs: ${task.title} (#${number})`, head: branch, base: repo.default_branch,
-          body: `${marker}\nCloses #${number}\n\nAI-generated documentation update (${task.title}). Only \`${output}\` changes.\n\n` +
-            `Checks: Markdown format/size and source links validated. Static analysis; the model executed no commands.\n\n` +
+          title: `${kind === 'cli-repository' ? 'fix' : 'docs'}: ${task.title} (#${number})`, head: branch, base: repo.default_branch,
+          body: `${marker}\nCloses #${number}\n\nAI-assisted task update (${task.title}). Changed files: ${[output,...task.extraFiles.map(file=>file.path)].map(path=>`\`${path}\``).join(", ")}.\n\n` +
+            `Checks: ${kind === 'cli-repository' ? 'Baseline bug reproduced; regex regression cases validated in a secret-free child. The new behavioral test must pass in PR CI.' : 'Task format/content and source references validated.'} The model executed no commands.\n\n` +
             `Sources: ${context.sources.length}. A durable checkpoint is reused on recovery when source content is unchanged.\n\n` +
             `Human review is required for factual accuracy. No automatic merge.`,
         });
       }
-      await journal.record(`PR hazır: ${pr.html_url}. Yalnızca görev belgesi değiştirildi; insan incelemesi gerekiyor.`);
+      await journal.record(`PR hazır: ${pr.html_url}. Görevin izin verdiği dosyalar değiştirildi; insan incelemesi gerekiyor.`);
       await active(true);
       // Update issue labels before the final board transition, then verify actual board state.
       await transition('Agent::In-Review', ['Agent::Working', 'Agent::Allowed', 'Agent::Needs-Human']);

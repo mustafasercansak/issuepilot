@@ -16,13 +16,15 @@ export interface CheckpointCommit {
   files: { filename: string; status: string }[];
 }
 
-export function validateCheckpoint(commit: CheckpointCommit, number: number, output: string, fingerprint: string, change: 'added' | 'modified' = 'added'): string {
+export function validateCheckpoint(commit: CheckpointCommit, number: number, output: string, fingerprint: string, change: 'added' | 'modified' = 'added', extras: string[] = []): string {
   const message = commit.commit?.message ?? '';
   const base = message.match(/^IssuePilot-Base: ([a-f0-9]{40})$/m)?.[1];
   if (!message.split('\n').includes(`IssuePilot-Issue: ${number}`) ||
       !message.split('\n').includes(`IssuePilot-Source: ${fingerprint}`) ||
       !base || commit.parents?.length !== 1 || commit.parents[0]?.sha !== base ||
-      commit.files?.length !== 1 || commit.files[0]?.filename !== output || commit.files[0]?.status !== change)
+      commit.files?.length !== 1 + extras.length ||
+      commit.files.filter(file => file.filename === output && file.status === change).length !== 1 ||
+      extras.some(path => commit.files.filter(file => file.filename === path && file.status === 'added').length !== 1))
     throw new Error('Inventory checkpoint is unrecognized, changed or based on different source content');
   return base;
 }

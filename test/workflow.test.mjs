@@ -1,17 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync } from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const scenarios = ['success','quota','existing-closed-pr','rejected','revoked','backlog','project-error','moved-away',
   'project-write-denied','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response',
-  'lost-review-response','tampered-checkpoint','changed-sources','working-recovery','model-timeout','failed-document-write','working-without-resume','second-task','journal-unavailable','readme-task'];
+  'lost-review-response','tampered-checkpoint','changed-sources','working-recovery','model-timeout','failed-document-write','working-without-resume','second-task','journal-unavailable','readme-task','code-task','lost-code-commit-response'];
 for (const scenario of scenarios) {
   test(`inventory workflow: ${scenario}`,()=>{
-    const issueNumber=scenario==='readme-task'?5:scenario==='second-task'?3:1;
+    const codeTask=['code-task','lost-code-commit-response'].includes(scenario);
+    const legacy=readFileSync(new URL('./fixtures/cli-before-dot-fix.ts',import.meta.url),'utf8');
+    const issueNumber=codeTask?7:scenario==='readme-task'?5:scenario==='second-task'?3:1;
     const root=mkdtempSync(join(tmpdir(),'issuepilot-flow-'));
     try {
       execFileSync('git',['init','--quiet'],{cwd:root});
@@ -23,6 +26,13 @@ for (const scenario of scenarios) {
         for(const name of ['ai-workflow.md','ready-gate.md','label-protocol.md','issue-journal.md'])writeFileSync(join(root,'docs',name),'source');
         writeFileSync(join(root,'.github/workflows/issue-intake.yml'),'source');
       }
+      if(codeTask) {
+        mkdirSync(join(root,'src'));mkdirSync(join(root,'dist'));
+        writeFileSync(join(root,'package.json'),'{"type":"module"}');
+        writeFileSync(join(root,'src/cli.ts'),legacy);
+        writeFileSync(join(root,'dist/cli.js'),stripTypeScriptTypes(legacy));
+        for(const name of ['github.js','projects.js'])copyFileSync(resolve('dist',name),join(root,'dist',name));
+      }
       execFileSync('git',['add','.'],{cwd:root});
       const preload=join(root,'mock.mjs'), log=join(root,'requests.json');
       const moduleUrl=pathToFileURL(resolve('dist/inventory-checkpoint.js')).href;
@@ -30,12 +40,12 @@ for (const scenario of scenarios) {
         import {writeFileSync} from 'node:fs';
         import {sourceFingerprint, checkpointMessage} from ${JSON.stringify(moduleUrl)};
         let labels=[{name:'Agent::Allowed'}], projectStatus='Ready';
-        const issueNumber=${issueNumber};
+        const issueNumber=${issueNumber},codeTask=${codeTask},legacy=${JSON.stringify(legacy)};
         const calls=[], scenario=${JSON.stringify(scenario)}, base='a'.repeat(40), saved='b'.repeat(40);
         const markdown='# Technical summary\\n\\nStatic analysis only; commands were not executed. Human review is required for factual accuracy.\\n\\n- Project: [README](../README.md)\\n- Runtime: [package](../package.json)\\n- CI: [CI](../.github/workflows/ci.yml)\\n';
         let branchExists=['resume-document','resume-pr','tampered-checkpoint','changed-sources','working-recovery'].includes(scenario);
         let documentSaved=branchExists, prExists=scenario==='resume-pr';
-        let lost=false, journalComment=null;
+        let lost=false, journalComment=null,treeFiles=[],commitMessage;
         if(['working-recovery','working-without-resume'].includes(scenario)) {labels=[{name:'Agent::Working'}];projectStatus='In progress';}
         if(scenario==='rejected') labels.push({name:'Agent::Rejected'});
         process.on('exit',()=>writeFileSync(${JSON.stringify(log)},JSON.stringify(calls)));
@@ -59,7 +69,7 @@ for (const scenario of scenarios) {
             if(scenario==='model-timeout') throw new TypeError('network');
             if(scenario==='moved-away') projectStatus='Backlog';
             if(scenario==='revoked') labels.push({name:'Agent::Rejected'});
-            const text=scenario==='readme-task'?'## GitHub Actions ile ilk görev\\n\\nNode.js 24 gerekir. npm ci ve npm run build ile kurun. GEMINI_API_KEY ve PROJECT_TOKEN secret adlarıdır. PROJECT_ID panoyu, INVENTORY_ISSUE_NUMBER görevi seçer; INVENTORY_AI_ENABLED ve PROJECT_POLLING_ENABLED etkinleştirir. Ready + Agent::Allowed gerekir; In progress sonra In review olur. Etiket hemen, tarama 30 dakikada bir çalışır. Bu yapılandırılmış tek görevdir; genel kuyruk değildir. [AI](docs/ai-workflow.md), [Ready](docs/ready-gate.md), [Günlük](docs/issue-journal.md).':markdown;
+            const text=codeTask?JSON.stringify({pattern:${JSON.stringify(String.raw`^[A-Za-z0-9_-]+\/(?!\.{1,2}$)[A-Za-z0-9_.-]+$`)}}):scenario==='readme-task'?'## GitHub Actions ile ilk görev\\n\\nNode.js 24 gerekir. npm ci ve npm run build ile kurun. GEMINI_API_KEY ve PROJECT_TOKEN secret adlarıdır. PROJECT_ID panoyu, INVENTORY_ISSUE_NUMBER görevi seçer; INVENTORY_AI_ENABLED ve PROJECT_POLLING_ENABLED etkinleştirir. Ready + Agent::Allowed gerekir; In progress sonra In review olur. Etiket hemen, tarama 30 dakikada bir çalışır. Bu yapılandırılmış tek görevdir; genel kuyruk değildir. [AI](docs/ai-workflow.md), [Ready](docs/ready-gate.md), [Günlük](docs/issue-journal.md).':markdown;
             return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text}]}}]});
           }
           if(path.endsWith('/issues/'+issueNumber+'/comments')) {
@@ -82,6 +92,21 @@ for (const scenario of scenarios) {
             if(scenario==='lost-ref-response'&&!lost){lost=true;throw new TypeError('network');}
             return Response.json({object:{sha:base}});
           }
+          if(path.includes('/contents/')&&method==='GET'&&codeTask) {
+            const file=treeFiles.find(file=>path.endsWith('/contents/'+file.path));
+            if(file)return Response.json({type:'file',encoding:'base64',size:Buffer.byteLength(file.content),content:Buffer.from(file.content).toString('base64')});
+            if(path.endsWith('/contents/src/cli.ts'))return Response.json({type:'file',encoding:'base64',sha:'c'.repeat(40),content:Buffer.from(legacy).toString('base64')});
+            return new Response('',{status:404});
+          }
+          if(path.endsWith('/git/trees')&&method==='POST'){treeFiles=body.tree;return Response.json({sha:'e'.repeat(40)});}
+          if(path.endsWith('/git/commits')&&method==='POST'){commitMessage=body.message;return Response.json({sha:saved});}
+          if(path.includes('/git/refs/heads/')&&method==='PATCH') {
+            documentSaved=true;
+            if(scenario==='lost-code-commit-response'&&!lost){lost=true;throw new TypeError('network');}
+            return Response.json({object:{sha:saved}});
+          }
+          if(path.includes('/git/commits/')&&method==='GET')return Response.json({tree:{sha:'c'.repeat(40)}});
+          if(path.includes('/commits/')&&codeTask)return Response.json({sha:saved,commit:{message:commitMessage},parents:[{sha:base}],files:[{filename:'src/cli.ts',status:'modified'},{filename:'test/cli-repository-regression.test.mjs',status:'added'}]});
           if(path.includes('/contents/')&&method==='GET'&&scenario==='readme-task'&&!documentSaved)return Response.json({type:'file',encoding:'base64',sha:'c'.repeat(40),content:Buffer.from('# Existing README\\n').toString('base64')});
           if(path.includes('/contents/')&&method==='GET')return documentSaved?Response.json({type:'file',encoding:'base64',size:Buffer.byteLength(markdown),content:Buffer.from(markdown).toString('base64')}):new Response('',{status:404});
           if(path.includes('/contents/')&&method==='PUT'){
@@ -105,14 +130,20 @@ for (const scenario of scenarios) {
         };
       `);
       const result=spawnSync(process.execPath,['--import',pathToFileURL(preload).href,resolve('dist/run-inventory.js')],{
-        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_RUN_ID:'42',GITHUB_RUN_ATTEMPT:'1',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:String(issueNumber),INVENTORY_ISSUE_NUMBER:String(issueNumber),PROJECT_ID:'PVT_example',PROJECT_TOKEN:'project-fake',GH_TOKEN:'fake',INVENTORY_TASK_KIND:scenario==='readme-task'?'readme-setup':'summary',GEMINI_API_KEY:scenario.startsWith('resume-')?'':'fake',GITHUB_SHA:'a'.repeat(40),RESUME_WORKING:scenario==='working-recovery'?'true':'false'}
+        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_RUN_ID:'42',GITHUB_RUN_ATTEMPT:'1',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:String(issueNumber),INVENTORY_ISSUE_NUMBER:String(issueNumber),PROJECT_ID:'PVT_example',PROJECT_TOKEN:'project-fake',GH_TOKEN:'fake',INVENTORY_TASK_KIND:codeTask?'cli-repository':scenario==='readme-task'?'readme-setup':'summary',GEMINI_API_KEY:scenario.startsWith('resume-')?'':'fake',GITHUB_SHA:'a'.repeat(40),RESUME_WORKING:scenario==='working-recovery'?'true':'false'}
       });
       const calls=JSON.parse(readFileSync(log,'utf8'));
       const modelCalls=calls.filter(c=>c.url.includes('generativelanguage'));
       const creates=calls.filter(c=>c.method==='POST'&&c.url.endsWith('/pulls'));
-      const successes=['success','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response','lost-review-response','working-recovery','failed-document-write','second-task','journal-unavailable','readme-task'];
+      const successes=['success','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response','lost-review-response','working-recovery','failed-document-write','second-task','journal-unavailable','readme-task','code-task','lost-code-commit-response'];
       if(successes.includes(scenario)){
         assert.equal(result.status,0,result.stderr);
+        if(codeTask) {
+          const trees=calls.filter(c=>c.url.endsWith('/git/trees')&&c.method==='POST');
+          assert.equal(trees.length,1);
+          assert.deepEqual(trees[0].body.tree.map(file=>file.path),['src/cli.ts','test/cli-repository-regression.test.mjs']);
+          assert.equal(calls.filter(c=>c.method==='PUT').length,0);
+        }
         if(scenario==='readme-task') {
           const write=calls.find(c=>c.method==='PUT');
           assert.ok(write.url.endsWith('/contents/README.md'));

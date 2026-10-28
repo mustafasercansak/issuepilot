@@ -31,3 +31,5 @@ Workflow zorla kesildiği için etiket Working kaldıysa **Actions → Issue int
 İnsan tarafından kapatılmış PR yeniden açılmaz; tanınmayan dal/PR üzerine yazılmaz. Otomatik merge yoktur.
 
 PR tamamlanırken önce issue etiketleri güncellenir, ardından pano In review yapılır. API onayı dışında kart durumu da yeniden okunarak doğrulanır. Önceki In progress durumuna geri dönen geçiş sınırlı sayıda düzeltilir; Ready/Done gibi beklenmeyen insan geçişleri üzerine yazılmaz.
+
+Kontrollü CLI görevinde checkpoint iki dosyayı atomik bir commit olarak içerir: src/cli.ts modified ve sabit regresyon testi added. Fazladan dosya veya değişmiş test içeriği reddedilir. [CLI kapsamı](cli-repository-task.md).
