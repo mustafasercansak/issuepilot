@@ -29,6 +29,20 @@ Aynı issue'nun workflow concurrency grubu eşzamanlı çalışmayı sınırlar.
 
 İlk görev #1 için çıktı docs/repository-inventory.md olarak korunur. Sonraki görevler docs/technical-summary-N.md üretir; farklı issue'lar aynı dosyanın üzerine yazmaz. Yeni görev için INVENTORY_ISSUE_NUMBER değişkenini ayarlayın. Bu hâlâ yapılandırılmış tek pilotu işler; tüm Ready issue'larını tüketen genel kuyruk değildir.
 
+## İkinci model ile bağımsız denetim (isteğe bağlı)
+
+`INVENTORY_REVIEW_ENABLED=true` olduğunda belgeyi üreten Gemini'den sonra ikinci bir sağlayıcı (Mistral, varsayılan `mistral-small-latest`) belgeyi kaynak dosyalarla karşılaştırır ve kaynakların desteklemediği ifadeleri listeler. Denetçi yalnızca engelleyebilir: hiçbir şeyi düzenlemez, önerisi belgeye eklenmez.
+
+- Bulgu varsa belge dala kaydedilmez, PR açılmaz, görev `Agent::Needs-Human` olur. Bulgu metinleri (en fazla 10, her biri 200 karaktere kısaltılmış) yalnızca workflow logunda görünür; issue günlüğünde yalnızca sayı yazılır.
+- Denetçi cevabı geçerli bir JSON karar değilse veya tutarsızsa görev yine durur (fail closed). İstek hatalarında otomatik yeniden deneme yoktur.
+- `MISTRAL_API_KEY` secret'ı eksikse görev, Gemini kotası harcanmadan önce durur.
+- Denetim temiz çıkarsa PR açıklamasına bir not eklenir. Bu not doğruluğun kanıtı değildir; insan incelemesi yine zorunludur.
+- Denetim yalnızca belge görevlerinde (`summary`, `readme-setup`) çalışır. Kod düzeltmesi görevinde uygulanmaz. Kaydedilmiş bir kontrol noktası yeniden kullanılırken tekrar çalıştırılmaz.
+
+Kurulum: GitHub Secret `MISTRAL_API_KEY`; Variable `INVENTORY_REVIEW_ENABLED=true`; isteğe bağlı Variable `MISTRAL_MODEL`. Anahtarı issue veya sohbette paylaşma.
+
+**Doğrulama durumu:** Mistral uç noktası ve istek biçimi resmi API dokümanına göre yazıldı, ama bu entegrasyon gerçek bir Mistral anahtarıyla denenmedi; testler sahte yanıtlarla çalışır. Ücretsiz katmanın güncel kotası ve koşulları kaynaklarda tutarsız ve yayımlanmış sayılara güvenilmemeli; kotayı Mistral konsolundan kontrol edin. Ücretsiz katman için yayımlanan bilgilere göre kullanım verisi model eğitiminde kullanılabilir olabilir; gizli kod göndermeden önce sağlayıcı koşullarını değerlendirin.
+
 ## Sınırlar ve doğrulama
 
 Sadece takip edilen, desteklenen türlerdeki, boyut sınırındaki normal dosyalar gönderilir. Bilinen credential adları, .env, symlink, lockfile ve üretilen dosyalar dışarıda bırakılır. Bu genel bir secret tarayıcısı değildir; kaynak içine gömülmüş sırrı bulmayı garanti etmez.

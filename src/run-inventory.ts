@@ -1,5 +1,7 @@
 import { collectInventoryContext } from './inventory-context.js';
 import { generateInventory, defaultModel } from './gemini.js';
+import { reviewDocument } from './review.js';
+import { defaultReviewModel } from './mistral.js';
 import { eligibility, readIssue } from './github.js';
 import { documentationTask } from './documentation-task.js';
 import { readProjectStatus, setProjectStatus, confirmProjectStatus } from './projects.js';
@@ -15,6 +17,9 @@ const projectToken = process.env.PROJECT_TOKEN ?? '';
 const apiKey = process.env.GEMINI_API_KEY ?? '';
 const sha = process.env.GITHUB_SHA ?? '';
 const model = process.env.GEMINI_MODEL || defaultModel;
+const reviewEnabled = process.env.INVENTORY_REVIEW_ENABLED === 'true';
+const mistralKey = process.env.MISTRAL_API_KEY ?? '';
+const reviewModel = process.env.MISTRAL_MODEL || defaultReviewModel;
 const branch = `issuepilot/inventory-${number}`;
 let output = '';
 const kind = process.env.INVENTORY_TASK_KIND || 'summary';
@@ -23,6 +28,7 @@ let journal: IssueJournal | undefined;
 let claimed = false;
 let pendingMarkdown: string | undefined;
 let baselineVerified = false;
+let reviewNote = '';
 
 class GitHubFailure extends Error {
   constructor(readonly status: number) { super(`GitHub HTTP ${status}`); }
@@ -143,6 +149,8 @@ try {
             !/^[a-f0-9]{40}$/.test(file.sha ?? '') || Buffer.from(file.content, 'base64').toString('utf8') !== task.original))
           throw new Error('Inventory task baseline does not match the workflow source');
         if (!apiKey) throw new Error('GEMINI_API_KEY is missing');
+        const review = reviewEnabled && kind !== 'cli-repository';
+        if (review && !mistralKey) throw new Error('MISTRAL_API_KEY is missing');
         await active();
         if (task.probe && !baselineVerified) {
           task.probe(); baselineVerified = true;
@@ -160,6 +168,20 @@ try {
         const markdown = pendingMarkdown;
         task.validate(markdown);
         await journal.record('Çıktı üretildi; göreve özgü çıktı kontrolleri geçti. Model komut çalıştırmadı.');
+        if (review && !reviewNote) {
+          let verdict;
+          try { verdict = await reviewDocument(context, markdown, mistralKey, reviewModel); }
+          catch (error) {
+            throw new Error(error instanceof Error && /^(Mistral |Review |Invalid Mistral)/.test(error.message) ? error.message : 'Review request failed; model calls are not automatically retried');
+          }
+          if (verdict.verdict === 'issues') {
+            for (const issue of verdict.issues) console.error(`Review finding: ${issue}`);
+            await journal.record(`Bağımsız denetim ${verdict.issues.length} desteklenmeyen ifade işaretledi; belge kaydedilmedi. Ayrıntılar workflow logunda.`);
+            throw new Error(`Review flagged ${verdict.issues.length} unsupported statement(s); nothing was saved`);
+          }
+          reviewNote = `Independent review by a second model (${reviewModel}) found no statements unsupported by the sources. This does not prove factual accuracy.\n\n`;
+          await journal.record('Bağımsız denetim (ikinci model) kaynaklarla çelişen veya desteklenmeyen ifade bulmadı. Bu, doğruluğun kanıtı değildir.');
+        }
         await active();
         // A branch changed by another actor must not receive our generated document.
         const latest = await github(`git/ref/heads/${branch}`);
@@ -197,7 +219,7 @@ try {
           title: `${kind === 'cli-repository' ? 'fix' : 'docs'}: ${task.title} (#${number})`, head: branch, base: repo.default_branch,
           body: `${marker}\nCloses #${number}\n\nAI-assisted task update (${task.title}). Changed files: ${[output,...task.extraFiles.map(file=>file.path)].map(path=>`\`${path}\``).join(", ")}.\n\n` +
             `Checks: ${kind === 'cli-repository' ? 'Baseline bug reproduced; regex regression cases validated in a secret-free child. The new behavioral test must pass in PR CI.' : 'Task format/content and source references validated.'} The model executed no commands.\n\n` +
-            `Sources: ${context.sources.length}. A durable checkpoint is reused on recovery when source content is unchanged.\n\n` +
+            reviewNote + `Sources: ${context.sources.length}. A durable checkpoint is reused on recovery when source content is unchanged.\n\n` +
             `Human review is required for factual accuracy. No automatic merge.`,
         });
       }
@@ -220,7 +242,7 @@ try {
     }
   }
 } catch (error) {
-  const message = error instanceof Error && /^(GitHub HTTP|Gemini |Inventory |Issue |Invalid |Project |GH_TOKEN|GEMINI_API_KEY|Run this)/.test(error.message)
+  const message = error instanceof Error && /^(GitHub HTTP|Gemini |Mistral |Review |Inventory |Issue |Invalid |Project |GH_TOKEN|GEMINI_API_KEY|MISTRAL_API_KEY|Run this)/.test(error.message)
     ? error.message : 'Inventory failed (network, timeout or unexpected response)';
   console.error(message);
   if (journal) await journal.record(`İşlem durdu: ${message}. Kaydedilmiş dal/belge/PR korunur. Sorun giderilince kart Ready yapılıp Allowed eklenebilir.`);
