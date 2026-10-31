@@ -2,7 +2,7 @@
 
 Issue, CI/CD hatası ve dokümantasyon eksiklerini inceleyip doğrulanmış PR hazırlamak için bağımsız proje.
 
-Durum: GitHub üzerindeki mevcut issue okunabilir ve etiket uygunluğu kontrol edilir. Gemini ile belge ve küçük kod düzeltmesi üretme, durum etiketleri, PR açma ve yarıda kalan işi kurtarma akışı uygulanmıştır; dört pilot görev çalıştırılmıştır (üçü merge edildi, biri incelemede). Henüz yoktur: kuyruktan görev seçimi, issue yorumlarını okuma, CI hata analizi, otomatik Done geçişi.
+Durum: GitHub üzerindeki mevcut issue okunabilir ve etiket uygunluğu kontrol edilir. Gemini ile belge ve küçük kod düzeltmesi üretme, durum etiketleri, PR açma ve yarıda kalan işi kurtarma akışı uygulanmıştır; dört pilot görev çalıştırılmıştır (üçü merge edildi, biri incelemede). Henüz yoktur: workflow'da kuyruktan görev seçimi (salt okunur `queue` komutu vardır), issue yorumlarını okuma, CI hata analizi, otomatik Done geçişi.
 
 ## Çalıştırma
 
@@ -38,7 +38,15 @@ Açık issue üzerinde `Agent::Allowed` ve yapılandırılmış Projects panosun
 
 Çıkış kodları: 0 uygun, 1 uygun değil, 2 kullanım/API/bağlantı hatası.
 
-Issue yorumları henüz okunmaz. Envanter AI job’ı ayrıca yapılandırılıp etkinleştirilir. `Agent::Allowed` eklendiğinde Issue intake workflow’u salt okunur uygunluk kontrolünü çalıştırır. Manuel çalıştırma da desteklenir. Kuyruktan görev seçimi henüz yoktur.
+Issue yorumları henüz okunmaz. Envanter AI job’ı ayrıca yapılandırılıp etkinleştirilir. `Agent::Allowed` eklendiğinde Issue intake workflow’u salt okunur uygunluk kontrolünü çalıştırır. Manuel çalıştırma da desteklenir. Workflow kuyruktan görev seçmez; tek onaylı issue (`INVENTORY_ISSUE_NUMBER`) işlenir.
+
+## Kuyruk (salt okunur)
+
+```sh
+npm start -- queue OWNER/REPO
+```
+
+Açık, `Agent::Allowed` etiketli ve Projects panosunda `Status = Ready` olan issue'ları eskiden yeniye sıralar; `Next` sıradaki görevdir, `Skipped` her elenen issue'nun nedenini verir. `PROJECT_ID` ve `PROJECT_TOKEN` zorunludur; eksikse veya pano okunamazsa komut hata verir. Komut hiçbir etiketi veya kartı değiştirmez ve görevi sahiplenmez. Henüz workflow'a bağlı değildir. Çıkış kodları: 0 sıradaki var, 1 kuyruk boş, 2 hata.
 
 ## Kontroller
 

@@ -48,6 +48,41 @@ export async function readProjectItem(repository: string, number: number, projec
   throw new Error('Project pagination limit reached');
 }
 
+// Status of every issue card of one repository in the selected project, keyed by issue number.
+export async function readProjectStatuses(repository: string, projectId: string, token: string,
+  request: typeof fetch = fetch): Promise<Map<number, string | null>> {
+  if (!projectId || !token) throw new Error('Project access configuration is missing');
+  const statuses = new Map<number, string | null>();
+  let cursor: string | null = null;
+  for (let page = 0; page < 100; page++) {
+    const response = await request('https://api.github.com/graphql', {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'IssuePilot/0.1' },
+      body: JSON.stringify({ query: `query($project: ID!, $cursor: String) {
+        node(id: $project) { ... on ProjectV2 {
+          items(first: 100, after: $cursor) {
+            nodes { content { ... on Issue { number repository { nameWithOwner } } }
+              fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } }
+            pageInfo { hasNextPage endCursor }
+          }
+        } }
+      }`, variables: { project: projectId, cursor } }),
+    });
+    if (!response.ok) throw new Error('Project API access failed');
+    const result = await response.json() as ProjectResponse;
+    const items = result.data?.node?.items;
+    if (result.errors?.length || !items || !Array.isArray(items.nodes) || !items.pageInfo)
+      throw new Error('Project API returned errors or inaccessible project');
+    for (const item of items.nodes)
+      if (item?.content?.number !== undefined && item.content.repository?.nameWithOwner?.toLowerCase() === repository.toLowerCase())
+        statuses.set(item.content.number, item.fieldValueByName?.name ?? null);
+    if (!items.pageInfo.hasNextPage) return statuses;
+    if (!items.pageInfo.endCursor || items.pageInfo.endCursor === cursor) throw new Error('Project pagination failed');
+    cursor = items.pageInfo.endCursor;
+  }
+  throw new Error('Project pagination limit reached');
+}
+
 export async function readProjectStatus(repository: string, number: number, projectId: string,
   token: string, request: typeof fetch = fetch): Promise<string | null> {
   return (await readProjectItem(repository, number, projectId, token, request))?.fieldValueByName?.name ?? null;
