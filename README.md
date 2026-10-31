@@ -2,7 +2,7 @@
 
 Issue, CI/CD hatası ve dokümantasyon eksiklerini inceleyip doğrulanmış PR hazırlamak için bağımsız proje.
 
-Durum: GitHub üzerindeki mevcut issue okunabilir ve etiket uygunluğu kontrol edilir. Gemini ile tek envanter belgesi üretme, durum etiketleri ve PR açma akışı uygulanmıştır; gerçek API denemesi için secret eklenip etkinleştirilmesi gerekir.
+Durum: GitHub üzerindeki mevcut issue okunabilir ve etiket uygunluğu kontrol edilir. Gemini ile belge ve küçük kod düzeltmesi üretme, durum etiketleri, PR açma ve yarıda kalan işi kurtarma akışı uygulanmıştır; dört pilot görev çalıştırılmıştır (üçü merge edildi, biri incelemede). Henüz yoktur: kuyruktan görev seçimi, issue yorumlarını okuma, CI hata analizi, otomatik Done geçişi.
 
 ## Çalıştırma
 
