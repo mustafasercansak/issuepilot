@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 
 const scenarios = ['success','quota','existing-closed-pr','rejected','revoked','backlog','project-error','moved-away',
   'project-write-denied','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response',
-  'lost-review-response','tampered-checkpoint','changed-sources','working-recovery','model-timeout','failed-document-write','working-without-resume','second-task','journal-unavailable','readme-task','code-task','lost-code-commit-response'];
+  'lost-review-response','tampered-checkpoint','changed-sources','working-recovery','model-timeout','failed-document-write','working-without-resume','second-task','journal-unavailable','readme-task','code-task','lost-code-commit-response','review-pass','review-flags','review-bad-answer','review-missing-key'];
 for (const scenario of scenarios) {
   test(`inventory workflow: ${scenario}`,()=>{
     const codeTask=['code-task','lost-code-commit-response'].includes(scenario);
@@ -63,6 +63,10 @@ for (const scenario of scenarios) {
             }
             if(scenario==='project-error') return Response.json({errors:[{}]});
             return Response.json({data:{node:{items:{nodes:[{id:'item',content:{number:issueNumber,repository:{nameWithOwner:'example/repo'}},fieldValueByName:{name:scenario==='backlog'?'Backlog':projectStatus,field:{id:'status-field',options:[{id:'progress',name:'In progress'},{id:'review',name:'In review'}]}}}],pageInfo:{hasNextPage:false,endCursor:null}}}}});
+          }
+          if(url.includes('api.mistral.ai')) {
+            const content=scenario==='review-flags'?JSON.stringify({verdict:'issues',issues:['The document claims a feature the sources never mention']}):scenario==='review-bad-answer'?'looks fine to me':JSON.stringify({verdict:'ok',issues:[]});
+            return Response.json({choices:[{finish_reason:'stop',message:{content}}]});
           }
           if(url.includes('generativelanguage')) {
             if(scenario==='quota') return new Response('',{status:429});
@@ -130,12 +134,13 @@ for (const scenario of scenarios) {
         };
       `);
       const result=spawnSync(process.execPath,['--import',pathToFileURL(preload).href,resolve('dist/run-inventory.js')],{
-        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_RUN_ID:'42',GITHUB_RUN_ATTEMPT:'1',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:String(issueNumber),INVENTORY_ISSUE_NUMBER:String(issueNumber),PROJECT_ID:'PVT_example',PROJECT_TOKEN:'project-fake',GH_TOKEN:'fake',INVENTORY_TASK_KIND:codeTask?'cli-repository':scenario==='readme-task'?'readme-setup':'summary',GEMINI_API_KEY:scenario.startsWith('resume-')?'':'fake',GITHUB_SHA:'a'.repeat(40),RESUME_WORKING:scenario==='working-recovery'?'true':'false'}
+        cwd:root,encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_RUN_ID:'42',GITHUB_RUN_ATTEMPT:'1',GITHUB_REPOSITORY:'example/repo',ISSUE_NUMBER:String(issueNumber),INVENTORY_ISSUE_NUMBER:String(issueNumber),PROJECT_ID:'PVT_example',PROJECT_TOKEN:'project-fake',GH_TOKEN:'fake',INVENTORY_TASK_KIND:codeTask?'cli-repository':scenario==='readme-task'?'readme-setup':'summary',GEMINI_API_KEY:scenario.startsWith('resume-')?'':'fake',INVENTORY_REVIEW_ENABLED:scenario.startsWith('review-')?'true':'false',MISTRAL_API_KEY:scenario==='review-missing-key'?'':'fake-mistral',GITHUB_SHA:'a'.repeat(40),RESUME_WORKING:scenario==='working-recovery'?'true':'false'}
       });
       const calls=JSON.parse(readFileSync(log,'utf8'));
       const modelCalls=calls.filter(c=>c.url.includes('generativelanguage'));
       const creates=calls.filter(c=>c.method==='POST'&&c.url.endsWith('/pulls'));
-      const successes=['success','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response','lost-review-response','working-recovery','failed-document-write','second-task','journal-unavailable','readme-task','code-task','lost-code-commit-response'];
+      const reviewCalls=calls.filter(c=>c.url.includes('api.mistral.ai'));
+      const successes=['success','resume-document','resume-pr','lost-ref-response','lost-document-response','lost-pr-response','lost-review-response','working-recovery','failed-document-write','second-task','journal-unavailable','readme-task','code-task','lost-code-commit-response','review-pass'];
       if(successes.includes(scenario)){
         assert.equal(result.status,0,result.stderr);
         if(codeTask) {
@@ -149,6 +154,12 @@ for (const scenario of scenarios) {
           assert.ok(write.url.endsWith('/contents/README.md'));
           assert.equal(write.body.sha,'c'.repeat(40));
           assert.ok(Buffer.from(write.body.content,'base64').toString('utf8').startsWith('# Existing README\n'));
+        }
+        assert.equal(reviewCalls.length,scenario==='review-pass'?1:0,'second model is called only when review is enabled');
+        if(scenario==='review-pass') {
+          assert.match(creates[0].body.body,/Independent review by a second model/);
+          assert.ok(calls.findIndex(c=>c.url.includes('api.mistral.ai'))>calls.findIndex(c=>c.url.includes('generativelanguage')));
+          assert.ok(calls.findIndex(c=>c.url.includes('api.mistral.ai'))<calls.findIndex(c=>c.method==='PUT'),'review happens before the document is saved');
         }
         if(scenario==='second-task')assert.ok(calls.some(c=>c.method==='PUT'&&c.url.endsWith('/docs/technical-summary-3.md')));
         assert.ok(calls.some(c=>c.body?.labels?.includes('Agent::In-Review')));
@@ -168,6 +179,15 @@ for (const scenario of scenarios) {
         assert.equal(calls.filter(c=>c.method==='PUT').length,0);
         if(['quota','model-timeout'].includes(scenario))assert.equal(modelCalls.length,1);
         if(['tampered-checkpoint','changed-sources','backlog','project-error','project-write-denied','rejected','existing-closed-pr'].includes(scenario))assert.equal(modelCalls.length,0);
+        if(['review-flags','review-bad-answer'].includes(scenario)) {
+          assert.equal(modelCalls.length,1);
+          assert.equal(reviewCalls.length,1);
+          assert.ok(calls.some(c=>c.body?.labels?.includes('Agent::Needs-Human')));
+        }
+        if(scenario==='review-missing-key') {
+          assert.equal(modelCalls.length,0,'missing review key must stop before spending Gemini quota');
+          assert.equal(reviewCalls.length,0);
+        }
         if(scenario==='revoked')assert.equal(calls.some(c=>c.body?.labels?.includes('Agent::Needs-Human')),false);
       }
     }finally{rmSync(root,{recursive:true,force:true});}

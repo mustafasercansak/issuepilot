@@ -91,6 +91,9 @@ jobs:
           PROJECT_ID: ${{ vars.PROJECT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
+          INVENTORY_REVIEW_ENABLED: ${{ vars.INVENTORY_REVIEW_ENABLED }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number || vars.INVENTORY_ISSUE_NUMBER }}
           INVENTORY_ISSUE_NUMBER: ${{ vars.INVENTORY_ISSUE_NUMBER }}
           INVENTORY_TASK_KIND: ${{ vars.INVENTORY_TASK_KIND }}

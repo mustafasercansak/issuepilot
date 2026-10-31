@@ -76,7 +76,7 @@ npm test
 
 Doğrudan JSON çıktısı için `node dist/cli.js issue OWNER/REPO 123` kullanın.
 
-AI bağlantısının hedef akışı ve mevcut sınırlar: [AI workflow](docs/ai-workflow.md).
+AI bağlantısının hedef akışı ve mevcut sınırlar: [AI workflow](docs/ai-workflow.md). İkinci bir modelle bağımsız denetim isteğe bağlıdır ve varsayılan olarak kapalıdır; gerçek API ile henüz denenmemiştir.
 
 Ready kapısı ve pano erişimi: [kurulum](docs/ready-gate.md). Yalnızca Ready’ye taşıma, tarama açıkken 30 dakikalık kontrolde algılanır; Allowed etiket olayı hemen kontrol başlatır.
 
