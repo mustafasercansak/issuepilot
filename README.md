@@ -2,7 +2,7 @@
 
 Issue, CI/CD hatası ve dokümantasyon eksiklerini inceleyip doğrulanmış PR hazırlamak için bağımsız proje.
 
-Durum: GitHub üzerindeki mevcut issue okunabilir ve etiket uygunluğu kontrol edilir. Gemini ile belge ve küçük kod düzeltmesi üretme, durum etiketleri, PR açma ve yarıda kalan işi kurtarma akışı uygulanmıştır; dört pilot görev çalıştırılmıştır (üçü merge edildi, biri incelemede). Henüz yoktur: workflow'da kuyruktan görev seçimi (salt okunur `queue` komutu vardır), issue yorumlarını okuma, CI hata analizi, otomatik Done geçişi.
+Durum: GitHub üzerindeki mevcut issue okunabilir ve etiket uygunluğu kontrol edilir. Gemini ile belge ve küçük kod düzeltmesi üretme, durum etiketleri, PR açma ve yarıda kalan işi kurtarma akışı uygulanmıştır; dört pilot görev çalıştırılmıştır (üçü merge edildi, biri incelemede). Henüz yoktur: workflow'da kuyruktan görev seçimi (salt okunur `queue` komutu vardır), issue yorumlarını okuma, workflow'a bağlı CI hata analizi (yerel `classify-log` komutu vardır), otomatik Done geçişi.
 
 ## Çalıştırma
 
@@ -58,6 +58,15 @@ npm start -- queue OWNER/REPO
 ```
 
 Açık, `Agent::Allowed` etiketli ve Projects panosunda `Status = Ready` olan issue'ları eskiden yeniye sıralar; `Next` sıradaki görevdir, `Skipped` her elenen issue'nun nedenini verir. `PROJECT_ID` ve `PROJECT_TOKEN` zorunludur; eksikse veya pano okunamazsa komut hata verir. Komut hiçbir etiketi veya kartı değiştirmez ve görevi sahiplenmez. Henüz workflow'a bağlı değildir. Çıkış kodları: 0 sıradaki var, 1 kuyruk boş, 2 hata.
+
+## CI log sınıflandırma (yerel)
+
+```sh
+npm start -- classify-log ci.log
+gh run view RUN_ID --log-failed | npm start -- classify-log -
+```
+
+Elinizdeki bir CI logunu `permissions`, `dependency`, `build`, `test`, `timeout`, `infrastructure` veya `unknown` olarak sınıflandırır; ilk eşleşen kategori `category`, eşleşen tümü `matched`, yeniden denemenin mantıklı olup olmadığı `retryable` alanındadır (yalnızca `timeout` ve `infrastructure`). `evidence` en fazla beş kısaltılmış satırdır; bilinen token biçimleri maskelenir ama bu genel bir secret tarayıcısı değildir. Sınıflandırma kural tabanlı bir sezgidir ve nedenin kesin kanıtı sayılmamalıdır. Komut log indirmez, issue açmaz, hiçbir şeyi değiştirmez. Çıkış kodları: 0 sınıflandı, 1 bilinmiyor, 2 okunamadı veya 5 MB üstü.
 
 ## Kontroller
 

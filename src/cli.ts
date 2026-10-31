@@ -3,15 +3,27 @@ import { eligibility, listAllowedIssues, readIssue } from "./github.js";
 
 import { readProjectStatus, readProjectStatuses } from "./projects.js";
 import { buildQueue } from "./queue.js";
+import { classifyLog } from "./ci-log.js";
+import { readFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
-const usage = "Usage: issuepilot issue <owner/repo> <number> | issuepilot queue <owner/repo>";
+const usage = "Usage: issuepilot issue <owner/repo> <number> | issuepilot queue <owner/repo> | issuepilot classify-log <file|->";
 const repositoryPattern = /^[A-Za-z0-9_-]+\/(?!\.$|\.\.$)[A-Za-z0-9_.-]+$/;
 if (args.length === 0 || (args.length === 1 && ["--help", "-h"].includes(args[0]!))) {
   console.log(usage);
   console.log("issue: reads an existing GitHub issue and reports Ready + label eligibility as JSON.");
   console.log("queue: lists open Allowed + Ready issues oldest first as JSON (read-only; exit 1 when empty).");
+  console.log("classify-log: classifies a CI log file (or stdin with -) as JSON; exit 1 when the cause is unknown.");
   console.log("Authentication: GH_TOKEN/GITHUB_TOKEN; project access: PROJECT_TOKEN and PROJECT_ID.");
+} else if (args.length === 2 && args[0] === "classify-log") {
+  try {
+    const result = classifyLog(readFileSync(args[1] === "-" ? 0 : args[1]!, "utf8"));
+    console.log(JSON.stringify(result, null, 2));
+    process.exitCode = result.category === "unknown" ? 1 : 0;
+  } catch {
+    console.error("Could not read or classify the log. Check the path and that the log is under 5 MB.");
+    process.exitCode = 2;
+  }
 } else if (args.length === 2 && args[0] === "queue" && repositoryPattern.test(args[1]!)) {
   try {
     const projectId = process.env.PROJECT_ID, projectToken = process.env.PROJECT_TOKEN;
