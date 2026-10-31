@@ -1,16 +1,32 @@
 #!/usr/bin/env node
-import { eligibility, readIssue } from "./github.js";
+import { eligibility, listAllowedIssues, readIssue } from "./github.js";
 
-import { readProjectStatus } from "./projects.js";
+import { readProjectStatus, readProjectStatuses } from "./projects.js";
+import { buildQueue } from "./queue.js";
 
 const args = process.argv.slice(2);
-const usage = "Usage: issuepilot issue <owner/repo> <number>";
+const usage = "Usage: issuepilot issue <owner/repo> <number> | issuepilot queue <owner/repo>";
+const repositoryPattern = /^[A-Za-z0-9_-]+\/(?!\.$|\.\.$)[A-Za-z0-9_.-]+$/;
 if (args.length === 0 || (args.length === 1 && ["--help", "-h"].includes(args[0]!))) {
   console.log(usage);
-  console.log("Reads an existing GitHub issue and reports Ready + label eligibility as JSON.");
+  console.log("issue: reads an existing GitHub issue and reports Ready + label eligibility as JSON.");
+  console.log("queue: lists open Allowed + Ready issues oldest first as JSON (read-only; exit 1 when empty).");
   console.log("Authentication: GH_TOKEN/GITHUB_TOKEN; project access: PROJECT_TOKEN and PROJECT_ID.");
+} else if (args.length === 2 && args[0] === "queue" && repositoryPattern.test(args[1]!)) {
+  try {
+    const projectId = process.env.PROJECT_ID, projectToken = process.env.PROJECT_TOKEN;
+    if (!projectId || !projectToken) throw new Error('Project access configuration is missing');
+    const issues = await listAllowedIssues(args[1]!, process.env.GH_TOKEN || process.env.GITHUB_TOKEN);
+    const result = buildQueue(issues, await readProjectStatuses(args[1]!, projectId, projectToken));
+    console.log(JSON.stringify({ Repository: args[1], Next: result.next, Queue: result.queue, Skipped: result.skipped }, null, 2));
+    process.exitCode = result.next ? 0 : 1;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Project ')) console.error(error.message);
+    console.error("Could not build the issue queue. Check repository, project access, rate limits and connectivity.");
+    process.exitCode = 2;
+  }
 } else if (args.length !== 3 || args[0] !== "issue" ||
-  !new RegExp("^[A-Za-z0-9_-]+\\/(?!\\.$|\\.\\.$)[A-Za-z0-9_.-]+$").test(args[1]!) ||
+  !repositoryPattern.test(args[1]!) ||
   !/^[1-9][0-9]*$/.test(args[2]!) || !Number.isSafeInteger(Number(args[2]))) {
   console.error(usage);
   process.exitCode = 2;
