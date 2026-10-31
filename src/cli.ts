@@ -10,7 +10,7 @@ if (args.length === 0 || (args.length === 1 && ["--help", "-h"].includes(args[0]
   console.log("Reads an existing GitHub issue and reports Ready + label eligibility as JSON.");
   console.log("Authentication: GH_TOKEN/GITHUB_TOKEN; project access: PROJECT_TOKEN and PROJECT_ID.");
 } else if (args.length !== 3 || args[0] !== "issue" ||
-  !/^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/.test(args[1]!) ||
+  !new RegExp("^[A-Za-z0-9_-]+\\/(?!\\.$|\\.\\.$)[A-Za-z0-9_.-]+$").test(args[1]!) ||
   !/^[1-9][0-9]*$/.test(args[2]!) || !Number.isSafeInteger(Number(args[2]))) {
   console.error(usage);
   process.exitCode = 2;
