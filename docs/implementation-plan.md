@@ -26,4 +26,4 @@ CI sorunlarını sınıflandırma; eksik veya eski belgeleri kod referanslarıyl
 
 ## Açık kararlar
 
-İlk sağlayıcı Gemini olarak seçildi; GitHub reposu mustafasercansak/issuepilot altında oluşturuldu. Lisans henüz seçilmedi. İlk entegrasyon GitHub; GitLab desteği sonraki kapsamdır.
+İlk sağlayıcı Gemini olarak seçildi; GitHub reposu mustafasercansak/issuepilot altında oluşturuldu. Lisans MIT olarak seçildi. İlk entegrasyon GitHub; GitLab desteği sonraki kapsamdır.

@@ -17,12 +17,23 @@ npm start -- --help
 
 İlk hedef: `Agent::Allowed` etiketli issue → analiz → izole çalışma dalı → değişiklik → doğrulama → PR. Merge kararı insandadır.
 
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> Allowed: insan ekler (kart Ready)
+  Allowed --> Working: görev alınır, kart In progress
+  Working --> InReview: doğrulama geçti, PR açıldı, kart In review
+  Working --> NeedsHuman: takılma, gerekçe issue yorumunda
+  NeedsHuman --> Allowed: insan yanıtlar
+  InReview --> [*]: insan merge eder
+```
+
 Sonraki aşamalar CI hata analizi ve kodla karşılaştırmalı dokümantasyon denetimidir.
 
 - [Etiket protokolü](docs/label-protocol.md)
 - [Uygulama planı](docs/implementation-plan.md)
 
-Repo: https://github.com/mustafasercansak/issuepilot (public). Lisans henüz seçilmedi.
+Repo: https://github.com/mustafasercansak/issuepilot (public). Lisans: [MIT](LICENSE).
 
 İlk pilot görevi: [repo envanteri](docs/first-issue.md). GitHub issue şablonu repoya eklenmiştir; AI envanter otomasyonu varsayılan olarak kapalıdır.
 
